@@ -1,0 +1,290 @@
+/* ==========================================================================
+   SendAnywhere LAN & FTP - Minimalist LAN Radar & FTP Hub Styles
+   ========================================================================== */
+
+/* Radar */
+.radar-section-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.radar-screen {
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.radar-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+.radar-ring-1 { width: 70px; height: 70px; }
+.radar-ring-2 { width: 140px; height: 140px; }
+.radar-ring-3 { width: 200px; height: 200px; }
+
+.radar-crosshair-h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.radar-crosshair-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.radar-sweep-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(99, 102, 241, 0.25) 360deg);
+  animation: radarSweep 4s linear infinite;
+  pointer-events: none;
+}
+
+.radar-center-node {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.65rem;
+}
+
+/* Peers Grid */
+.peers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.peer-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.peer-card:hover {
+  border-color: var(--text-subtle);
+}
+
+.peer-card-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.peer-avatar-box {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.peer-meta {
+  min-width: 0;
+}
+
+.peer-name {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.peer-ip-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-subtle);
+}
+
+/* FTP Hub */
+.ftp-hub-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  max-width: 800px;
+  margin: 1.5rem auto;
+}
+
+.ftp-status-card {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ftp-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.ftp-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.ftp-live-badge.online {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--accent-emerald);
+}
+
+.ftp-live-badge.offline {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--accent-rose);
+}
+
+.ftp-client-guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.ftp-client-row {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ftp-client-title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  width: 140px;
+}
+
+.ftp-url-snippet {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* QR Hub */
+.qr-hub-card {
+  text-align: center;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.qr-preview-img-box {
+  background: white;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+}
+
+.qr-preview-img-box img {
+  width: 140px;
+  height: 140px;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   Mobile Responsiveness
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .radar-section-wrapper {
+    margin: 1rem 0;
+    gap: 1.25rem;
+  }
+
+  .radar-screen {
+    width: min(240px, 72vw);
+    height: min(240px, 72vw);
+  }
+
+  .peers-grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .peer-card {
+    padding: 0.85rem 1rem;
+  }
+
+  .ftp-hub-grid {
+    margin: 1rem auto;
+    gap: 0.75rem;
+  }
+
+  .ftp-client-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  .ftp-client-title {
+    width: 100%;
+    font-size: 0.75rem;
+  }
+
+  .ftp-url-snippet {
+    width: 100%;
+    background: var(--bg-secondary);
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .ftp-client-row .btn-ghost {
+    align-self: flex-end;
+    padding: 0.2rem 0.6rem;
+  }
+}

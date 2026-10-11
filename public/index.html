@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>SendAnywhere</title>
+  <meta name="description" content="Minimalist LAN file transfer & FTP storage.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/send-receive.css">
+  <link rel="stylesheet" href="css/vault.css">
+  <link rel="stylesheet" href="css/radar.css">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="container header-container">
+        <!-- Logo -->
+        <a href="#send" class="brand-logo" title="SendAnywhere">
+          <div class="brand-logo-icon">
+            <svg class="brand-logo-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 13L4 18C4 19.1046 4.89543 20 6 20M20 13V18C20 19.1046 19.1046 20 18 20H10M16 7L12 3L12 15M8 7L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="brand-title">SendAnywhere</span>
+        </a>
+
+        <!-- Nav Tabs -->
+        <nav class="nav-tabs">
+          <button class="nav-tab-btn active" data-nav-tab="send">Send</button>
+          <button class="nav-tab-btn" data-nav-tab="receive">Receive</button>
+          <button class="nav-tab-btn" data-nav-tab="vault">Vault</button>
+          <button class="nav-tab-btn" data-nav-tab="radar">
+            Radar
+            <span class="badge-counter" id="radar-peers-count-badge">0</span>
+          </button>
+          <button class="nav-tab-btn" data-nav-tab="ftp">FTP</button>
+        </nav>
+
+        <!-- Controls -->
+        <div class="header-actions">
+          <div class="lan-ip-badge" id="header-lan-badge" title="Copy LAN URL">
+            <span class="lan-dot"></span>
+            <span id="header-lan-ip-label">...</span>
+          </div>
+          <button class="btn-icon" id="btn-toggle-logs" title="Transfer Activity & Logs">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </button>
+          <button class="btn-icon" id="btn-toggle-sound" title="Toggle audio">
+            <span id="sound-icon-slot">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </span>
+          </button>
+          <button class="btn-icon" id="btn-toggle-theme" title="Toggle theme">
+            <span id="theme-icon-slot">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container" style="flex: 1;">
+
+      <!-- ====================================================================
+           SECTION 1: SEND
+           ==================================================================== -->
+      <section id="section-send" class="app-tab-section animate-fade-in">
+        <div class="transfer-hero-grid">
+          
+          <!-- Send Form -->
+          <div class="glass-panel" id="send-form-card" style="padding: 1.5rem;">
+            <!-- Transfer Engine Mode Toggle (P2P Zero-Server vs Server Storage) -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">Transfer Mode</span>
+              <span class="badge badge-cyan" id="transfer-mode-auto-badge" style="display: none; font-size: 0.68rem;">⚡ Auto: Size Optimized</span>
+            </div>
+            <div class="transfer-mode-selector" id="transfer-mode-selector">
+              <button type="button" class="mode-btn active" id="btn-mode-p2p" data-transfer-mode="p2p">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>P2P Direct (&gt;50 MB)</span>
+              </button>
+              <button type="button" class="mode-btn" id="btn-mode-server" data-transfer-mode="server">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                <span>Server PIN (&lt;50 MB)</span>
+              </button>
+            </div>
+
+            <div class="subtabs-wrapper">
+              <button class="subtab-btn active" data-send-subtab="files">Files</button>
+              <button class="subtab-btn" data-send-subtab="text">Text</button>
+            </div>
+
+            <!-- Files Subtab -->
+            <div id="send-files-panel">
+              <input type="file" id="send-file-input" multiple style="display: none;">
+              <input type="file" id="send-folder-input" webkitdirectory directory multiple style="display: none;">
+              <input type="file" id="send-camera-input" accept="image/*,video/*" capture="environment" style="display: none;">
+
+              <div class="dropzone-container" id="send-dropzone">
+                <div class="dropzone-icon-circle">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div class="dropzone-title">Drop files or folders here</div>
+                <div class="dropzone-actions">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-select-files">Browse Files</button>
+                  <button type="button" class="btn btn-secondary btn-sm mobile-camera-btn" id="btn-select-camera">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    Camera
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="btn-select-folder">Folder</button>
+                </div>
+              </div>
+
+              <!-- Staged Files -->
+              <div class="file-staging-card" id="send-staging-card" style="display: none;">
+                <div class="file-staging-header">
+                  <span id="staged-files-count">0 files</span>
+                  <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span id="staged-files-total-size">0 B</span>
+                    <button class="btn-ghost btn-sm" style="padding: 0.1rem 0.3rem;" onclick="SendController.clearStagedFiles()">Clear</button>
+                  </div>
+                </div>
+                <div class="file-staging-list" id="staged-files-list"></div>
+              </div>
+            </div>
+
+            <!-- Text Subtab -->
+            <div id="send-text-panel" style="display: none;">
+              <div class="form-group">
+                <input type="text" id="send-text-title" class="input-text" placeholder="Title (optional)">
+              </div>
+              <div class="form-group">
+                <textarea id="send-text-input" class="textarea-input" placeholder="Type or paste text snippet..."></textarea>
+              </div>
+            </div>
+
+            <!-- Send Footer Options -->
+            <div class="transfer-settings-row">
+              <div class="expiry-selector">
+                <span>Expires:</span>
+                <select id="send-expiry-select">
+                  <option value="300">5m</option>
+                  <option value="600" selected>10m</option>
+                  <option value="1800">30m</option>
+                  <option value="3600">1h</option>
+                  <option value="86400">24h</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" id="btn-execute-send">
+                Send
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div class="glass-panel" id="send-progress-card" style="display: none; padding: 2rem; text-align: center;">
+            <div class="animate-spin" style="margin-bottom: 1rem; color: var(--primary);">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="send-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div class="progress-meta">
+              <span id="send-progress-percent">0%</span>
+              <span id="send-progress-speed">0 MB/s</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-top: 1rem;">
+              <span class="badge badge-cyan" id="send-progress-resumed-badge" style="display: none;">⚡ Resumed from checkpoint</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-pause-resume-send" style="min-width: 80px;">Pause</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-send-specs">⚡ Turbo Specs</button>
+            </div>
+
+            <!-- Google Tech Drawer (Expandable) -->
+            <div class="turbo-specs-drawer" id="send-turbo-specs-drawer" style="display: none;">
+              <div class="turbo-specs-header" id="btn-toggle-send-specs-header">
+                <div class="turbo-specs-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  <span>IDM Chunk Matrix & Live Telemetry</span>
+                </div>
+                <span style="font-size: 0.7rem; color: var(--text-muted);" id="send-specs-toggle-state">▼ Close</span>
+              </div>
+              <div class="turbo-specs-body" id="send-turbo-specs-body">
+                <div class="idm-matrix-wrapper">
+                  <div class="idm-matrix-header">
+                    <span>Sparse Chunk Allocation</span>
+                    <div class="idm-matrix-legend">
+                      <span><i class="legend-dot verified"></i> Verified (<span id="send-matrix-verified-count">0</span>)</span>
+                      <span><i class="legend-dot inflight"></i> Active</span>
+                      <span><i class="legend-dot pending"></i> Pending</span>
+                    </div>
+                  </div>
+                  <div class="idm-chunk-matrix" id="send-idm-chunk-matrix"></div>
+                </div>
+                <div class="telemetry-grid">
+                  <div class="telemetry-card">
+                    <span class="telemetry-label">Throughput</span>
+                    <span class="telemetry-val shimmer-text" id="send-telemetry-speed">0.0 MB/s</span>
+                  </div>
+                  <div class="telemetry-card">
+                    <span class="telemetry-label">Transport</span>
+                    <span class="telemetry-val" id="send-telemetry-transport">WebRTC SCTP</span>
+                  </div>
+                  <div class="telemetry-card">
+                    <span class="telemetry-label">Buffer Health</span>
+                    <span class="telemetry-val" id="send-telemetry-buffer">Optimal</span>
+                  </div>
+                  <div class="telemetry-card">
+                    <span class="telemetry-label">ICE Route</span>
+                    <span class="telemetry-val" id="send-telemetry-ice">Host (LAN Direct)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Transfer -->
+          <div class="glass-panel active-transfer-card" id="send-active-card" style="display: none;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <span class="badge badge-primary" id="send-active-badge">Ready</span>
+              <span class="badge badge-emerald" id="send-active-mode-badge">⚡ P2P Direct Pipe</span>
+            </div>
+            <div class="pin-display-container" id="active-pin-display"></div>
+
+            <div class="countdown-timer-badge" id="active-countdown-timer">
+              10:00
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn btn-secondary btn-sm" id="btn-copy-pin">Copy Key</button>
+              <button class="btn btn-cyan btn-sm" id="btn-view-qr">QR Code</button>
+              <button class="btn btn-danger btn-sm" id="btn-cancel-transfer">Cancel</button>
+            </div>
+
+            <div class="share-links-box">
+              <div class="share-link-row">
+                <span class="share-link-text" id="active-share-link-text"></span>
+                <button class="btn-icon btn-sm" id="btn-copy-share-link" title="Copy">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div style="margin-top: 1rem;">
+              <button class="btn btn-ghost btn-sm" id="btn-new-send">+ Send More</button>
+            </div>
+          </div>
+
+          <!-- IDM 20-Day Persistent Resume Shelf -->
+          <div class="idm-resume-shelf" id="send-idm-resume-shelf">
+            <div class="idm-shelf-header">
+              <div class="idm-shelf-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <span>IDM Resume Vault</span>
+                <span class="idm-shelf-badge" id="send-resume-count-badge">0 paused</span>
+              </div>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">20-day lossless local cache</span>
+            </div>
+            <div class="idm-resume-list" id="send-idm-resume-list"></div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           SECTION 2: RECEIVE
+           ==================================================================== -->
+      <section id="section-receive" class="app-tab-section" style="display: none;">
+        <div class="transfer-hero-grid">
+
+          <!-- PIN Input Card -->
+          <div class="glass-panel" id="receive-input-card" style="padding: 2rem; text-align: center;">
+            <div class="pin-input-group">
+              <input type="text" maxlength="1" class="pin-digit-box" autofocus inputmode="numeric" pattern="[0-9]*">
+              <input type="text" maxlength="1" class="pin-digit-box" inputmode="numeric" pattern="[0-9]*">
+              <input type="text" maxlength="1" class="pin-digit-box" inputmode="numeric" pattern="[0-9]*">
+              <input type="text" maxlength="1" class="pin-digit-box" inputmode="numeric" pattern="[0-9]*">
+              <input type="text" maxlength="1" class="pin-digit-box" inputmode="numeric" pattern="[0-9]*">
+              <input type="text" maxlength="1" class="pin-digit-box" inputmode="numeric" pattern="[0-9]*">
+            </div>
+
+            <div class="pin-quick-actions" style="display: flex; justify-content: center; gap: 0.6rem; margin-bottom: 1.25rem;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-paste-pin" title="Paste from clipboard">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Paste Key
+              </button>
+              <button type="button" class="btn btn-cyan btn-sm" id="btn-scan-qr" title="Scan QR with camera">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+                Scan QR
+              </button>
+            </div>
+
+            <button class="btn btn-primary" id="btn-lookup-pin" style="min-width: 140px;">
+              Receive
+            </button>
+          </div>
+
+          <!-- Transfer Details -->
+          <div class="glass-panel" id="receive-details-card" style="display: none; overflow: hidden;">
+            <div class="received-card-header">
+              <div class="sender-info-pill">
+                <div class="sender-avatar">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <div>
+                  <div style="font-weight: 600;" id="receive-sender-name">Sender</div>
+                  <div style="font-size: 0.72rem; color: var(--text-subtle);" id="receive-sender-ip"></div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span class="badge badge-emerald" id="receive-mode-badge">⚡ P2P Direct Pipe</span>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem;" id="receive-transfer-meta"></div>
+              </div>
+            </div>
+
+            <!-- P2P Live Direct Stream Progress View -->
+            <div id="receive-p2p-stream-container" style="display: none; padding: 1.25rem; text-align: center; border-bottom: 1px solid var(--border-color);">
+              <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--primary-light);" id="receive-p2p-file-name">Streaming direct to disk...</div>
+              <div class="progress-track" style="margin-bottom: 0.5rem;">
+                <div class="progress-fill" id="receive-p2p-progress-bar" style="width: 0%;"></div>
+              </div>
+              <div class="progress-meta" style="margin-bottom: 0.75rem;">
+                <span id="receive-p2p-progress-percent">0%</span>
+                <span id="receive-p2p-progress-speed">0 MB/s</span>
+              </div>
+              <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
+                <span class="badge badge-cyan" id="receive-p2p-resumed-badge" style="display: none;">⚡ Resumed from checkpoint</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-pause-resume-receive">Pause</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-receive-specs">⚡ Turbo Specs</button>
+              </div>
+
+              <!-- Google Tech Drawer (Receiver) -->
+              <div class="turbo-specs-drawer" id="receive-turbo-specs-drawer" style="display: none; text-align: left; margin-top: 1rem;">
+                <div class="turbo-specs-header" id="btn-toggle-receive-specs-header">
+                  <div class="turbo-specs-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <span>Receiver IDM Chunk Matrix & Telemetry</span>
+                  </div>
+                  <span style="font-size: 0.7rem; color: var(--text-muted);" id="receive-specs-toggle-state">▼ Close</span>
+                </div>
+                <div class="turbo-specs-body" id="receive-turbo-specs-body">
+                  <div class="idm-matrix-wrapper">
+                    <div class="idm-matrix-header">
+                      <span>Received Sparse Chunks</span>
+                      <div class="idm-matrix-legend">
+                        <span><i class="legend-dot verified"></i> Written (<span id="receive-matrix-verified-count">0</span>)</span>
+                        <span><i class="legend-dot inflight"></i> In-Flight</span>
+                        <span><i class="legend-dot pending"></i> Remaining</span>
+                      </div>
+                    </div>
+                    <div class="idm-chunk-matrix" id="receive-idm-chunk-matrix"></div>
+                  </div>
+                  <div class="telemetry-grid">
+                    <div class="telemetry-card">
+                      <span class="telemetry-label">Receive Rate</span>
+                      <span class="telemetry-val shimmer-text" id="receive-telemetry-speed">0.0 MB/s</span>
+                    </div>
+                    <div class="telemetry-card">
+                      <span class="telemetry-label">Disk Pipe</span>
+                      <span class="telemetry-val" id="receive-telemetry-disk">Zero-RAM Stream</span>
+                    </div>
+                    <div class="telemetry-card">
+                      <span class="telemetry-label">SCTP State</span>
+                      <span class="telemetry-val" id="receive-telemetry-state">Connected</span>
+                    </div>
+                    <div class="telemetry-card">
+                      <span class="telemetry-label">Checkpoint</span>
+                      <span class="telemetry-val" id="receive-telemetry-ckpt">Lossless</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Files List -->
+            <div id="receive-files-list-container" style="padding: 0.5rem 0;">
+              <table class="transfer-files-table">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="receive-files-tbody"></tbody>
+              </table>
+            </div>
+
+            <!-- Text Content -->
+            <div id="receive-text-content-container" style="display: none; padding: 1.25rem;">
+              <div id="receive-text-body" style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem; font-family: var(--font-mono); font-size: 0.85rem; white-space: pre-wrap; line-height: 1.5; max-height: 200px; overflow-y: auto; margin-bottom: 0.75rem;"></div>
+              <button class="btn btn-primary btn-sm" id="btn-copy-received-text">Copy Text</button>
+            </div>
+
+            <div class="modal-footer">
+              <button class="btn btn-ghost btn-sm" id="btn-receive-another">Back</button>
+              <button class="btn btn-primary btn-sm" id="btn-download-all-zip">Download All (ZIP)</button>
+              <button class="btn btn-primary btn-sm" id="btn-p2p-start-stream" style="display: none;">Save to Disk</button>
+            </div>
+          </div>
+
+          <!-- IDM 20-Day Persistent Resume Shelf (Receive) -->
+          <div class="idm-resume-shelf" id="receive-idm-resume-shelf">
+            <div class="idm-shelf-header">
+              <div class="idm-shelf-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <span>IDM Resume Vault</span>
+                <span class="idm-shelf-badge" id="receive-resume-count-badge">0 paused</span>
+              </div>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">20-day lossless local cache</span>
+            </div>
+            <div class="idm-resume-list" id="receive-idm-resume-list"></div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           SECTION 3: VAULT
+           ==================================================================== -->
+      <section id="section-vault" class="app-tab-section" style="display: none;">
+        <div class="vault-container">
+          
+          <!-- Toolbar -->
+          <div class="vault-toolbar">
+            <div class="vault-breadcrumbs" id="vault-breadcrumbs-container"></div>
+
+            <div class="vault-actions-group">
+              <button class="btn btn-secondary btn-sm" id="btn-vault-new-folder">+ Folder</button>
+              <input type="file" id="vault-upload-input" multiple style="display: none;">
+              <button class="btn btn-primary btn-sm" id="btn-vault-upload">Upload</button>
+              <button class="btn btn-ghost btn-sm" id="btn-vault-download-zip" title="Download folder ZIP">ZIP</button>
+            </div>
+          </div>
+
+          <!-- Filter -->
+          <div class="vault-filter-bar">
+            <div class="search-wrapper vault-search-box">
+              <span class="search-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <input type="text" id="vault-search-input" class="input-text" placeholder="Search...">
+            </div>
+
+            <div class="vault-view-controls">
+              <button class="view-toggle-btn active" id="btn-vault-view-grid" title="Grid">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              </button>
+              <button class="view-toggle-btn" id="btn-vault-view-list" title="List">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Viewport -->
+          <div class="vault-explorer-viewport" id="vault-explorer-viewport">
+            <div class="vault-drop-overlay">
+              <span style="font-size: 0.9rem; color: white;">Drop files to upload</span>
+            </div>
+
+            <div class="vault-grid-layout" id="vault-grid-container"></div>
+
+            <table class="vault-list-layout" id="vault-list-container" style="display: none;">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Size</th>
+                  <th style="text-align: right;"></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+
+            <div id="vault-empty-state" style="display: none; text-align: center; padding: 3rem 1rem;">
+              <p style="color: var(--text-subtle); font-size: 0.85rem;">Folder is empty</p>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="vault-stats-card">
+            <span>data/vault/</span>
+            <div class="vault-stats-pills">
+              <div class="vault-stat-pill">Files: <strong id="vault-stat-files-count">0</strong></div>
+              <div class="vault-stat-pill">Folders: <strong id="vault-stat-folders-count">0</strong></div>
+              <div class="vault-stat-pill">Size: <strong id="vault-stat-total-size">0 B</strong></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           SECTION 4: RADAR
+           ==================================================================== -->
+      <section id="section-radar" class="app-tab-section" style="display: none;">
+        <div class="radar-section-wrapper">
+          
+          <div class="glass-panel" style="padding: 0.65rem 1rem; display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 480px;">
+            <span style="font-size: 0.82rem; color: var(--text-muted);" id="own-device-name-label">Scanning...</span>
+            <button class="btn btn-secondary btn-sm" id="btn-edit-device-name">Edit Name</button>
+          </div>
+
+          <!-- Radar Visual -->
+          <div class="radar-screen" id="radar-screen-viewport">
+            <div class="radar-ring radar-ring-1"></div>
+            <div class="radar-ring radar-ring-2"></div>
+            <div class="radar-ring radar-ring-3"></div>
+            <div class="radar-crosshair-h"></div>
+            <div class="radar-crosshair-v"></div>
+            <div class="radar-sweep-beam"></div>
+            <div class="radar-center-node" title="You"></div>
+          </div>
+
+          <input type="file" id="direct-send-file-input" multiple style="display: none;">
+
+          <!-- Peers Grid -->
+          <div style="width: 100%; max-width: 600px;">
+            <div class="peers-grid" id="peers-grid-container"></div>
+            <div id="peers-empty-state" style="display: none; text-align: center; padding: 2rem 1rem;" class="glass-panel">
+              <p style="color: var(--text-subtle); font-size: 0.82rem;">No other devices on local network</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           SECTION 5: FTP SERVER
+           ==================================================================== -->
+      <section id="section-ftp" class="app-tab-section" style="display: none;">
+        <div class="ftp-hub-grid">
+          
+          <div class="glass-panel ftp-status-card">
+            <div class="ftp-status-header">
+              <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span style="font-weight: 600; font-size: 0.95rem;">FTP Server</span>
+                <span id="ftp-live-status-badge" class="ftp-live-badge online">Active</span>
+              </div>
+              <button class="btn btn-danger btn-sm" id="btn-toggle-ftp">Stop</button>
+            </div>
+
+            <!-- Interface -->
+            <div class="form-group" style="margin: 0.5rem 0;">
+              <select id="ftp-interface-select" class="select-input"></select>
+            </div>
+
+            <!-- Connection Snippets -->
+            <div class="ftp-client-guide-list">
+              <div class="ftp-client-row">
+                <span class="ftp-client-title">Windows Explorer</span>
+                <span class="ftp-url-snippet" id="ftp-snippet-windows">ftp://...</span>
+                <button class="btn-ghost btn-sm" data-copy-target="ftp-snippet-windows">Copy</button>
+              </div>
+
+              <div class="ftp-client-row">
+                <span class="ftp-client-title">macOS Finder</span>
+                <span class="ftp-url-snippet" id="ftp-snippet-mac">ftp://...</span>
+                <button class="btn-ghost btn-sm" data-copy-target="ftp-snippet-mac">Copy</button>
+              </div>
+
+              <div class="ftp-client-row">
+                <span class="ftp-client-title">FileZilla / Cyberduck</span>
+                <span class="ftp-url-snippet" id="ftp-snippet-host">...</span>
+                <button class="btn-ghost btn-sm" data-copy-target="ftp-snippet-host">Copy Host</button>
+              </div>
+
+              <div class="ftp-client-row">
+                <span class="ftp-client-title">curl / Terminal</span>
+                <span class="ftp-url-snippet" id="ftp-snippet-curl">curl ...</span>
+                <button class="btn-ghost btn-sm" data-copy-target="ftp-snippet-curl">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- QR -->
+          <div class="glass-panel qr-hub-card">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Mobile Web QR</span>
+            <div class="qr-preview-img-box">
+              <img id="qr-hub-preview-img" alt="QR" src="">
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-subtle);" id="qr-hub-lan-url"></span>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="container footer-container">
+        <span>SendAnywhere LAN</span>
+        <span>Local Subnet</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modals -->
+  <!-- QR Modal -->
+  <div class="modal-overlay" id="modal-qr-view">
+    <div class="modal-container" style="max-width: 320px; text-align: center;">
+      <div class="modal-header">
+        <span class="modal-title">QR Code</span>
+        <button class="modal-close-btn" data-close-modal="modal-qr-view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="background: white; padding: 0.65rem; border-radius: var(--radius-sm); display: inline-block; margin-bottom: 0.75rem;">
+          <img id="qr-modal-img" style="width: 200px; height: 200px; display: block;" alt="QR Code">
+        </div>
+        <div id="qr-modal-key-text" style="font-family: var(--font-mono); font-weight: 700; color: var(--primary-light);"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div class="modal-overlay" id="modal-file-preview">
+    <div class="modal-container" style="max-width: 800px;">
+      <div class="modal-header">
+        <span class="modal-title" id="preview-modal-title">Preview</span>
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <a id="btn-preview-download" href="#" class="btn btn-secondary btn-sm" download>Download</a>
+          <button class="modal-close-btn" data-close-modal="modal-file-preview">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="preview-modal-body" id="preview-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- New Folder Modal -->
+  <div class="modal-overlay" id="modal-new-folder">
+    <div class="modal-container" style="max-width: 360px;">
+      <div class="modal-header">
+        <span class="modal-title">New Folder</span>
+        <button class="modal-close-btn" data-close-modal="modal-new-folder">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="new-folder-name-input" class="input-text" placeholder="Folder name">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" data-close-modal="modal-new-folder">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="btn-confirm-create-folder">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Modal -->
+  <div class="modal-overlay" id="modal-rename-item">
+    <div class="modal-container" style="max-width: 360px;">
+      <div class="modal-header">
+        <span class="modal-title">Rename</span>
+        <button class="modal-close-btn" data-close-modal="modal-rename-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="rename-item-input" class="input-text" placeholder="New name">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" data-close-modal="modal-rename-item">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="btn-confirm-rename">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="modal-overlay" id="modal-delete-confirm">
+    <div class="modal-container" style="max-width: 360px;">
+      <div class="modal-header">
+        <span class="modal-title" style="color: var(--accent-rose);">Delete</span>
+        <button class="modal-close-btn" data-close-modal="modal-delete-confirm">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Delete <strong id="delete-item-name-label" style="color: var(--text-main);">this item</strong>?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" data-close-modal="modal-delete-confirm">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="btn-confirm-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Incoming Direct Transfer Modal -->
+  <div class="modal-overlay" id="modal-incoming-transfer">
+    <div class="modal-container" style="max-width: 380px; text-align: center;">
+      <div class="modal-header">
+        <span class="modal-title">Incoming Transfer</span>
+      </div>
+      <div class="modal-body">
+        <div style="font-weight: 600;" id="incoming-sender-name">Peer Device</div>
+        <div style="font-size: 0.75rem; color: var(--text-subtle); margin-bottom: 0.75rem;" id="incoming-sender-ip"></div>
+        <div class="badge badge-primary" id="incoming-transfer-meta" style="margin-bottom: 0.75rem;"></div>
+        <div id="incoming-files-preview-list" style="background: var(--bg-tertiary); border-radius: var(--radius-sm); padding: 0.5rem; text-align: left; max-height: 120px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer" style="justify-content: center; gap: 0.5rem;">
+        <button class="btn btn-ghost btn-sm" id="btn-decline-incoming-transfer">Decline</button>
+        <button class="btn btn-primary btn-sm" id="btn-accept-incoming-transfer">Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Device Name Modal -->
+  <div class="modal-overlay" id="modal-edit-device-name">
+    <div class="modal-container" style="max-width: 360px;">
+      <div class="modal-header">
+        <span class="modal-title">Device Name</span>
+        <button class="modal-close-btn" data-close-modal="modal-edit-device-name">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="edit-device-name-input" class="input-text" placeholder="Device nickname">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" data-close-modal="modal-edit-device-name">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="btn-save-device-name">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera QR Scanner Modal -->
+  <div class="modal-overlay" id="modal-qr-scanner">
+    <div class="modal-container qr-scanner-modal-container" style="max-width: 420px; text-align: center;">
+      <div class="modal-header">
+        <span class="modal-title">Scan QR Code</span>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button class="btn-icon btn-sm" id="btn-qr-scanner-torch" style="display: none;" title="Toggle Flashlight">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </button>
+          <button class="modal-close-btn" data-close-modal="modal-qr-scanner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body qr-scanner-modal-body" style="padding: 0; position: relative; background: #000; overflow: hidden;">
+        <video id="qr-scanner-video" playsinline muted autoplay class="qr-scanner-video-feed"></video>
+        <div class="qr-scanner-reticle-box">
+          <div class="qr-reticle-corner top-left"></div>
+          <div class="qr-reticle-corner top-right"></div>
+          <div class="qr-reticle-corner bottom-left"></div>
+          <div class="qr-reticle-corner bottom-right"></div>
+          <div class="qr-scanner-laser"></div>
+        </div>
+        <div class="qr-scanner-hint">Point camera at peer screen QR code</div>
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button class="btn btn-ghost btn-sm" data-close-modal="modal-qr-scanner">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transfer Activity & History Logs Modal -->
+  <div class="modal-overlay" id="modal-transfer-logs">
+    <div class="modal-container logs-modal-container">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary-light)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span class="modal-title">Activity & Transfer Logs</span>
+          <span class="badge badge-primary" id="logs-count-badge" style="font-size: 0.68rem; padding: 0.1rem 0.45rem;">0</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <button class="btn btn-ghost btn-sm" id="btn-clear-logs" title="Clear all transfer logs" style="font-size: 0.72rem; padding: 0.25rem 0.5rem; color: var(--accent-rose);">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Clear
+          </button>
+          <button class="modal-close-btn" data-close-modal="modal-transfer-logs">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body logs-modal-body">
+        <div class="logs-filter-toolbar">
+          <div class="logs-search-wrapper">
+            <svg class="logs-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="logs-search-input" class="input-text logs-search-input" placeholder="Search by file name, PIN, peer or text...">
+          </div>
+          <div class="logs-filter-chips">
+            <button type="button" class="logs-chip-btn active" data-log-filter="all">All Logs</button>
+            <button type="button" class="logs-chip-btn" data-log-filter="p2p">P2P Direct</button>
+            <button type="button" class="logs-chip-btn" data-log-filter="server">Server PIN</button>
+            <button type="button" class="logs-chip-btn" data-log-filter="vault">Vault</button>
+            <button type="button" class="logs-chip-btn" data-log-filter="send">Sent</button>
+            <button type="button" class="logs-chip-btn" data-log-filter="receive">Received</button>
+          </div>
+        </div>
+
+        <div class="logs-list-scroll" id="logs-list-container">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between; font-size: 0.72rem; color: var(--text-subtle);">
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span class="lan-dot" style="width: 7px; height: 7px;"></span>
+          <span>Live WebSocket synchronized</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" data-close-modal="modal-transfer-logs">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav">
+    <button class="mobile-nav-item active" data-nav-tab="send">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      <span>Send</span>
+    </button>
+    <button class="mobile-nav-item" data-nav-tab="receive">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>Receive</span>
+    </button>
+    <button class="mobile-nav-item" data-nav-tab="vault">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span>Vault</span>
+    </button>
+    <button class="mobile-nav-item" data-nav-tab="radar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+      <span class="mobile-nav-badge" id="mobile-radar-badge" style="display: none;">0</span>
+      <span>Radar</span>
+    </button>
+    <button class="mobile-nav-item" data-nav-tab="ftp">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      <span>FTP</span>
+    </button>
+  </nav>
+
+  <!-- Toast Stack -->
+  <div class="toast-stack" id="toast-stack"></div>
+
+  <!-- Scripts -->
+  <script src="js/sounds.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/p2p.js"></script>
+  <script src="js/websocket.js"></script>
+  <script src="js/preview.js"></script>
+  <script src="js/qr-scanner.js"></script>
+  <script src="js/send.js"></script>
+  <script src="js/receive.js"></script>
+  <script src="js/vault.js"></script>
+  <script src="js/peers.js"></script>
+  <script src="js/ftp.js"></script>
+  <script src="js/logs.js"></script>
+  <script src="js/idm-resume.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,731 @@
+/* ==========================================================================
+   SendAnywhere LAN & FTP - Minimalist Send & Receive Styles
+   ========================================================================== */
+
+.transfer-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  max-width: 600px;
+  margin: 2rem auto;
+}
+
+/* Transfer Mode Segmented Selector (P2P vs Server) */
+.transfer-mode-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  background: var(--bg-tertiary);
+  padding: 0.3rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  margin-bottom: 1.15rem;
+}
+
+.mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.mode-btn:hover {
+  color: var(--text-main);
+}
+
+.mode-btn.active {
+  background: var(--bg-secondary);
+  color: var(--primary-light);
+  border-color: var(--border-glow);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Subtabs */
+.subtabs-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.subtab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all var(--transition-fast);
+}
+
+.subtab-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-tertiary);
+}
+
+.subtab-btn.active {
+  color: var(--text-main);
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+/* Dropzone */
+.dropzone-container {
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 2.25rem 1.25rem;
+  text-align: center;
+  background: var(--bg-tertiary);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.dropzone-container:hover, .dropzone-container.drag-over {
+  border-color: var(--primary);
+  background: var(--bg-card-hover);
+}
+
+.dropzone-icon-circle {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 0.75rem auto;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.dropzone-container:hover .dropzone-icon-circle {
+  color: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.dropzone-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+  color: var(--text-main);
+}
+
+.dropzone-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Staged Files */
+.file-staging-card {
+  margin-top: 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.file-staging-header {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.file-staging-list {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+
+.staged-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+}
+
+.staged-file-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.staged-file-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.file-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+.staged-file-meta {
+  min-width: 0;
+}
+
+.staged-file-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.staged-file-size {
+  font-size: 0.72rem;
+  color: var(--text-subtle);
+}
+
+.staged-file-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: var(--radius-sm);
+}
+
+.staged-file-remove:hover {
+  color: var(--accent-rose);
+}
+
+/* Transfer Controls */
+.transfer-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.expiry-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.expiry-selector select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-size: 0.8rem;
+}
+
+/* Active 6-Digit Transfer Display */
+.active-transfer-card {
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+
+.pin-display-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1.8vw, 10px);
+  margin: 1.25rem auto;
+  max-width: 100%;
+}
+
+.pin-char-pill {
+  width: min(46px, calc((100vw - 3.8rem) / 6));
+  height: min(58px, calc((100vw - 3.8rem) * 1.26 / 6));
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: clamp(1.15rem, 5vw, 1.8rem);
+  font-weight: 700;
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+
+.countdown-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--accent-amber);
+  margin-bottom: 1.25rem;
+}
+
+.share-links-box {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  margin-top: 1.25rem;
+  text-align: left;
+}
+
+.share-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  margin-top: 0.35rem;
+}
+
+.share-link-text {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Progress */
+.transfer-progress-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.progress-track {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: var(--radius-full);
+  transition: width 0.15s ease-out;
+}
+
+.progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+}
+
+/* Received Inspection Table */
+.received-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.sender-info-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sender-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transfer-files-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.transfer-files-table th {
+  text-align: left;
+  padding: 0.55rem 1.15rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-subtle);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.transfer-files-table td {
+  padding: 0.65rem 1.15rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.82rem;
+}
+
+.transfer-files-table tr:hover td {
+  background: var(--bg-card-hover);
+}
+
+.pin-quick-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.mobile-camera-btn {
+  display: inline-flex;
+}
+
+@media (max-width: 640px) {
+  .transfer-hero-grid {
+    margin: 0.75rem auto;
+    padding: 0;
+  }
+
+  .dropzone-container {
+    padding: 1.5rem 0.85rem;
+  }
+
+  .dropzone-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+
+  .dropzone-actions .btn {
+    flex: 1 1 calc(50% - 0.4rem);
+    min-height: 40px;
+    justify-content: center;
+  }
+
+  .transfer-settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .expiry-selector {
+    justify-content: space-between;
+  }
+
+  .expiry-selector select {
+    flex: 1;
+    max-width: 140px;
+  }
+
+  .transfer-files-table th, 
+  .transfer-files-table td {
+    padding: 0.65rem 0.65rem;
+  }
+
+  .share-link-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .transfer-mode-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .active-transfer-card {
+    padding: 1.5rem 0.75rem;
+  }
+}
+
+/* ==========================================================================
+   IDM 20-Day Persistent Resume Shelf & Checkpoints Vault
+   ========================================================================== */
+.idm-resume-shelf {
+  margin-top: 1.5rem;
+  padding: 1.15rem;
+  border-radius: var(--radius-lg);
+  background: rgba(18, 18, 26, 0.75);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.45);
+  display: none;
+}
+
+.idm-resume-shelf.has-items {
+  display: block;
+}
+
+.idm-shelf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.idm-shelf-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.idm-shelf-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.idm-resume-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.idm-resume-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.95rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-fast);
+}
+
+.idm-resume-item:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.idm-resume-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.idm-resume-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.idm-resume-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.idm-resume-progress-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--primary-light);
+}
+
+.idm-resume-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Google Tech Drawer: IDM Chunk Matrix & Telemetry
+   ========================================================================== */
+.turbo-specs-drawer {
+  margin-top: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: rgba(13, 14, 20, 0.9);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.turbo-specs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  user-select: none;
+}
+
+.turbo-specs-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.turbo-specs-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* IDM Chunk Block Matrix */
+.idm-matrix-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.idm-matrix-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.idm-matrix-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-dot.verified { background: #10b981; }
+.legend-dot.inflight { background: #f59e0b; }
+.legend-dot.pending  { background: rgba(255, 255, 255, 0.12); }
+
+.idm-chunk-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10px, 1fr));
+  gap: 2px;
+  max-height: 110px;
+  overflow-y: auto;
+  padding: 0.4rem;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.idm-chunk-block {
+  aspect-ratio: 1;
+  border-radius: 1.5px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.15s ease;
+}
+
+.idm-chunk-block.verified {
+  background: #10b981;
+  box-shadow: 0 0 3px rgba(16, 185, 129, 0.4);
+}
+
+.idm-chunk-block.inflight {
+  background: #f59e0b;
+  animation: pulseInFlight 1s infinite alternate;
+}
+
+@keyframes pulseInFlight {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+/* Telemetry Stats Grid */
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.5rem;
+}
+
+.telemetry-card {
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.telemetry-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-subtle);
+}
+
+.telemetry-val {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+}
+
+

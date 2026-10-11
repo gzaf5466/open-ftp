@@ -1,5 +1,8 @@
 node_modules/
 data/temp_transfers/
+data/vault/
+data/transfer_logs.json
 *.log
 .DS_Store
 Thumbs.db
+
