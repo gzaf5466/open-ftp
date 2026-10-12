@@ -329,15 +329,8 @@ const SendController = {
     if (countEl) countEl.textContent = `${this.stagedFiles.length} file${this.stagedFiles.length > 1 ? 's' : ''}`;
     if (totalSizeEl) totalSizeEl.textContent = this.formatBytes(totalBytes);
 
-    // Automatic mode decision based on total size threshold (50 MB)
-    const AUTO_P2P_THRESHOLD = 50 * 1024 * 1024; // 50 MB
-    if (!this.manualModeOverride) {
-      if (totalBytes >= AUTO_P2P_THRESHOLD) {
-        this.setTransferMode('p2p', true);
-      } else {
-        this.setTransferMode('server', true);
-      }
-    }
+    // Headless P2P Mode (Always direct browser-to-browser)
+    this.setTransferMode('p2p', true);
   },
 
   async handleSendSubmit() {
@@ -415,7 +408,7 @@ const SendController = {
         }
 
       } else {
-        // Text Snippet transfer
+        // Text Snippet transfer (Headless P2P)
         const textInput = document.getElementById('send-text-input');
         const titleInput = document.getElementById('send-text-title');
         const content = textInput ? textInput.value.trim() : '';
@@ -425,16 +418,31 @@ const SendController = {
           return;
         }
 
-        const result = await API.sendText({
-          text: content,
-          title: titleInput ? titleInput.value.trim() : 'Clipboard Snippet',
-          expiry: expirySeconds,
-          deviceName: customDeviceName
+        const pin = Math.floor(100000 + Math.random() * 900000).toString();
+        const snippetTitle = (titleInput && titleInput.value.trim()) ? titleInput.value.trim() : 'Clipboard Snippet';
+
+        window.wsClient.send({
+          type: 'register_p2p_room',
+          pin: pin,
+          filesMeta: [{
+            name: `${snippetTitle}.txt`,
+            size: new Blob([content]).size,
+            type: 'text/plain',
+            text: content
+          }],
+          expirySeconds: expirySeconds
         });
 
-        if (result.success && result.transfer) {
-          this.displayActiveTransfer(result.transfer);
-        }
+        const p2pTransfer = {
+          key: pin,
+          type: 'text',
+          text: content,
+          title: snippetTitle,
+          isP2P: true,
+          expiresAt: Date.now() + (expirySeconds * 1000)
+        };
+
+        this.displayActiveTransfer(p2pTransfer);
       }
 
     } catch (err) {

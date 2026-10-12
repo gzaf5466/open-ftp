@@ -58,6 +58,23 @@ const FtpController = {
     const portEl = document.getElementById('ftp-port-label');
     const authEl = document.getElementById('ftp-auth-label');
 
+    if (status && status.headless) {
+      if (badge) {
+        badge.className = 'ftp-live-badge online';
+        badge.innerHTML = `
+          <span class="lan-dot" style="background: var(--accent-cyan);"></span>
+          Headless P2P Active
+        `;
+      }
+      if (toggleBtn) {
+        toggleBtn.textContent = 'P2P Mesh Mode';
+        toggleBtn.disabled = true;
+      }
+      if (portEl) portEl.textContent = 'WebRTC DataChannel';
+      if (authEl) authEl.textContent = 'Encrypted E2E';
+      return;
+    }
+
     if (badge) {
       badge.className = `ftp-live-badge ${status.running ? 'online' : 'offline'}`;
       badge.innerHTML = `

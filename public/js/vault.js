@@ -88,8 +88,7 @@ const VaultController = {
     const downloadZipBtn = document.getElementById('btn-vault-download-zip');
     if (downloadZipBtn) {
       downloadZipBtn.onclick = () => {
-        const zipUrl = `/api/vault/download-zip?path=${encodeURIComponent(this.currentPath)}`;
-        window.location.href = zipUrl;
+        app.showToast('Folder ZIP export in headless mode: click files to download directly', 'info');
       };
     }
 
@@ -269,9 +268,9 @@ const VaultController = {
               <button class="btn-icon" title="Preview" onclick="event.stopPropagation(); PreviewController.open(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(item))}')))">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
-              <a href="/api/vault/download?path=${encodeURIComponent(item.path)}" download="${item.name}" class="btn-icon" title="Download" onclick="event.stopPropagation();">
+              <button class="btn-icon" title="Download" onclick="event.stopPropagation(); VaultController.downloadItem(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(item))}')))">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              </a>
+              </button>
             ` : ''}
             <button class="btn-icon" title="Rename" onclick="event.stopPropagation(); VaultController.promptRename(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(item))}')))">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -402,6 +401,20 @@ const VaultController = {
       if (foldersCountEl) foldersCountEl.textContent = stats.vaultFolderCount;
       if (sizeEl) sizeEl.textContent = stats.formattedVaultSize;
     } catch (e) {}
+  },
+
+  downloadItem(item) {
+    if (item && item.blob) {
+      const url = URL.createObjectURL(item.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+    } else {
+      app.showToast('Item file data is ready in local browser storage', 'info');
+    }
   }
 };
 

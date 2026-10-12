@@ -14,8 +14,18 @@ const PreviewController = {
 
     if (modalTitle) modalTitle.textContent = file.name;
     if (downloadBtn) {
-      downloadBtn.href = `/api/vault/download?path=${encodeURIComponent(file.path)}`;
-      downloadBtn.setAttribute('download', file.name);
+      downloadBtn.onclick = (e) => {
+        e.preventDefault();
+        if (file.blob) {
+          const url = URL.createObjectURL(file.blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+        }
+      };
     }
 
     if (!modalBody) return;
@@ -23,7 +33,7 @@ const PreviewController = {
 
     app.openModal('modal-file-preview');
 
-    const previewUrl = `/api/vault/preview?path=${encodeURIComponent(file.path)}`;
+    const previewUrl = file.blob ? URL.createObjectURL(file.blob) : '';
     const category = file.category;
 
     switch (category) {

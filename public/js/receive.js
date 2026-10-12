@@ -288,32 +288,17 @@ const ReceiveController = {
       this.p2pLookupTimeout = null;
     }
 
-    // 1. First probe P2P Room over WebSocket
-    if (window.wsClient && window.wsClient.ws && window.wsClient.ws.readyState === 1) {
+    // Headless P2P Room Join over mesh
+    if (window.wsClient) {
       window.wsClient.send({ type: 'join_p2p_room', pin: cleanPin });
-      // Short fallback timeout if room response doesn't arrive within 350ms
+      app.showToast(`Looking for sender with key ${cleanPin}...`, 'info');
+
       this.p2pLookupTimeout = setTimeout(() => {
         if (!this.currentTransfer && this.pendingLookupPin === cleanPin) {
-          const target = this.pendingLookupPin;
+          app.showToast('Transfer key not found or sender offline. Please check the 6-digit PIN.', 'error');
           this.pendingLookupPin = null;
-          this.fetchServerTransferByKey(target);
         }
-      }, 350);
-    } else {
-      await this.fetchServerTransferByKey(cleanPin);
-    }
-  },
-
-  async fetchServerTransferByKey(pin) {
-    try {
-      const result = await API.lookupTransfer(pin);
-      if (result.success && result.transfer) {
-        this.renderTransferDetails(result.transfer);
-      } else {
-        app.showToast(result.error || 'Transfer not found or expired', 'error');
-      }
-    } catch (err) {
-      app.showToast(err.message || 'Key not found or expired', 'error');
+      }, 7000);
     }
   },
 
@@ -375,9 +360,6 @@ const ReceiveController = {
         transfer.files.forEach((file, index) => {
           const row = document.createElement('tr');
           const categoryIcon = SendController.getCategoryIcon(file.category);
-          const fileDownloadUrl = `/api/transfer/download-file/${transfer.key}/${file.id}`;
-          const isP2P = !!transfer.isP2P;
-
           row.innerHTML = `
             <td>
               <div class="vault-list-file-cell">
@@ -390,21 +372,10 @@ const ReceiveController = {
             </td>
             <td style="text-align: right;">
               <div style="display: inline-flex; gap: 0.35rem;">
-                ${isP2P ? `
-                  <button type="button" class="btn btn-primary btn-sm btn-action-p2p-save">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <span>Save to Disk</span>
-                  </button>
-                ` : `
-                  <button type="button" class="btn btn-primary btn-sm btn-action-turbo-download">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    <span>Turbo Download</span>
-                  </button>
-                  <a href="${fileDownloadUrl}" class="btn btn-secondary btn-sm" download="${file.originalName}" title="Standard browser / IDM link">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <span>Direct</span>
-                  </a>
-                `}
+                <button type="button" class="btn btn-primary btn-sm btn-action-p2p-save">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Save to Disk</span>
+                </button>
               </div>
             </td>
           `;
@@ -526,9 +497,11 @@ const ReceiveController = {
   },
 
   downloadAllZip() {
-    if (!this.currentTransfer) return;
-    const downloadUrl = `/api/transfer/download-all/${this.currentTransfer.key}`;
-    window.location.href = downloadUrl;
+    if (!this.currentTransfer || !this.currentTransfer.files) return;
+    app.showToast('Starting P2P stream for files...', 'info');
+    for (const file of this.currentTransfer.files) {
+      this.startP2PDiskStream(file);
+    }
   },
 
   resetReceiveView() {

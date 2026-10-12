@@ -96,10 +96,10 @@ class App {
       if (headerIpLabel) {
         const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname) ||
                             /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
-        if (isLocalHost && info.primaryIp) {
+        if (isLocalHost && info.primaryIp && !info.headless) {
           headerIpLabel.textContent = `${info.primaryIp}:${info.port}`;
         } else {
-          headerIpLabel.textContent = 'Online';
+          headerIpLabel.textContent = 'P2P Online';
         }
       }
 
