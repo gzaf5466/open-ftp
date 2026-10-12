@@ -379,10 +379,16 @@ const SendController = {
           }));
 
           // Register P2P room with WebSocket server
+          if (window.p2pEngine) {
+            window.p2pEngine.stagedFiles = [...this.stagedFiles];
+            window.p2pEngine.currentPin = pin;
+          }
+
           window.wsClient.send({
             type: 'register_p2p_room',
             pin: pin,
             filesMeta: manifest,
+            files: this.stagedFiles,
             expirySeconds: expirySeconds
           });
 
@@ -437,15 +443,23 @@ const SendController = {
         const pin = Math.floor(100000 + Math.random() * 900000).toString();
         const snippetTitle = (titleInput && titleInput.value.trim()) ? titleInput.value.trim() : 'Clipboard Snippet';
 
+        const textBlob = new Blob([content], { type: 'text/plain' });
+        const textFile = new File([textBlob], `${snippetTitle}.txt`, { type: 'text/plain' });
+        if (window.p2pEngine) {
+          window.p2pEngine.stagedFiles = [textFile];
+          window.p2pEngine.currentPin = pin;
+        }
+
         window.wsClient.send({
           type: 'register_p2p_room',
           pin: pin,
           filesMeta: [{
             name: `${snippetTitle}.txt`,
-            size: new Blob([content]).size,
+            size: textBlob.size,
             type: 'text/plain',
             text: content
           }],
+          files: [textFile],
           expirySeconds: expirySeconds
         });
 

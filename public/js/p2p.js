@@ -179,6 +179,13 @@ class P2PEngine {
 
     this.dataChannel.onopen = () => {
       this.emit('channel_open');
+      if (this.queuedMessages && this.queuedMessages.length > 0) {
+        const toSend = [...this.queuedMessages];
+        this.queuedMessages = [];
+        toSend.forEach(m => {
+          try { this.dataChannel.send(m); } catch (e) {}
+        });
+      }
     };
 
     this.dataChannel.onclose = () => {
@@ -241,6 +248,8 @@ class P2PEngine {
         return true;
       } catch (e) {}
     }
+    if (!this.queuedMessages) this.queuedMessages = [];
+    this.queuedMessages.push(data);
     return false;
   }
 
@@ -254,25 +263,47 @@ class P2PEngine {
       const { signal, fromPeerId } = data;
       if (!signal) return;
 
-      if (signal.type === 'offer') {
-        this.createPeerConnection(fromPeerId, false);
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
-        const answer = await this.peerConnection.createAnswer();
-        await this.peerConnection.setLocalDescription(answer);
+      try {
+        if (signal.type === 'offer') {
+          this.createPeerConnection(fromPeerId, false);
+          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+          if (this.pendingIceCandidates && this.pendingIceCandidates.length > 0) {
+            for (const c of this.pendingIceCandidates) {
+              try { await this.peerConnection.addIceCandidate(c); } catch (e) {}
+            }
+            this.pendingIceCandidates = [];
+          }
+          const answer = await this.peerConnection.createAnswer();
+          await this.peerConnection.setLocalDescription(answer);
 
-        window.wsClient.send({
-          type: 'webrtc_signal',
-          targetPeerId: fromPeerId,
-          signal: answer
-        });
-      } else if (signal.type === 'answer' && this.peerConnection) {
-        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
-      } else if (signal.type === 'candidate' && this.peerConnection) {
-        try {
-          await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
-        } catch (e) {
-          console.warn('[P2P] ICE Candidate error:', e);
+          window.wsClient.send({
+            type: 'webrtc_signal',
+            targetPeerId: fromPeerId,
+            signal: answer
+          });
+        } else if (signal.type === 'answer' && this.peerConnection) {
+          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
+          if (this.pendingIceCandidates && this.pendingIceCandidates.length > 0) {
+            for (const c of this.pendingIceCandidates) {
+              try { await this.peerConnection.addIceCandidate(c); } catch (e) {}
+            }
+            this.pendingIceCandidates = [];
+          }
+        } else if (signal.type === 'candidate' && signal.candidate) {
+          const iceCandidate = new RTCIceCandidate(signal.candidate);
+          if (this.peerConnection && this.peerConnection.remoteDescription) {
+            try {
+              await this.peerConnection.addIceCandidate(iceCandidate);
+            } catch (e) {
+              console.warn('[P2P] ICE Candidate error:', e);
+            }
+          } else {
+            if (!this.pendingIceCandidates) this.pendingIceCandidates = [];
+            this.pendingIceCandidates.push(iceCandidate);
+          }
         }
+      } catch (err) {
+        console.warn('[P2P] WebRTC signal error:', err);
       }
     });
   }
@@ -465,12 +496,12 @@ class P2PEngine {
         break;
 
       case 'READY_TO_RECEIVE':
-        // Match specific staged file if requested
-        if (this.stagedFiles && this.stagedFiles.length > 0) {
-          const match = this.stagedFiles.find(f =>
+        const filesList = this.stagedFiles || (window.SendController && window.SendController.stagedFiles) || [];
+        if (filesList.length > 0) {
+          const match = filesList.find(f =>
             this.generateFileId(f) === msg.fileId || f.name === msg.fileName
           );
-          if (match) this.currentFile = match;
+          this.currentFile = match || filesList[0];
         }
         // Sender starts streaming from the requested offset
         this.startStreamingFromOffset(msg.resumeOffset || 0);

@@ -90,17 +90,19 @@ const ReceiveController = {
         this.p2pLookupTimeout = null;
       }
       this.isP2P = true;
-      const totalBytes = (data.filesMeta || []).reduce((sum, f) => sum + f.size, 0);
+      const totalBytes = (data.filesMeta || []).reduce((sum, f) => sum + (f.size || 0), 0);
+      const isTextSnippet = (data.filesMeta || []).length === 1 && data.filesMeta[0].text;
 
       const p2pTransfer = {
         key: data.pin,
-        type: 'files',
+        type: isTextSnippet ? 'text' : 'files',
+        text: isTextSnippet ? data.filesMeta[0].text : undefined,
         isP2P: true,
         fileCount: (data.filesMeta || []).length,
         totalSize: totalBytes,
         formattedTotalSize: SendController.formatBytes(totalBytes),
         senderInfo: { deviceName: data.senderName, ip: 'P2P Direct Pipe' },
-        files: data.filesMeta.map((f, i) => ({
+        files: (data.filesMeta || []).map((f, i) => ({
           id: 'p2p_f_' + i,
           originalName: f.name,
           size: f.size,

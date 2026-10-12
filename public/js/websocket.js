@@ -1,25 +1,36 @@
 /**
- * Headless Real-Time P2P Client & Signaling Engine
- * Powered by PeerJS & WebRTC DataChannels over standard HTTPS/WSS (Port 443)
- * - Zero backend server needed (runs 100% in-browser on Vercel)
- * - End-to-end encrypted direct browser-to-browser transfers
- * - Automatic NAT traversal via Google STUN servers
- * - Live peer radar discovery
+ * Headless Real-Time P2P Signaling Engine
+ * Powered by MQTT over WebSocket & WebRTC DataChannels (Port 443 WSS)
+ * - 100% Serverless & Headless (Runs entirely in-browser on Vercel)
+ * - Ultra-low latency public broker mesh (EMQX / HiveMQ SSL WebSockets)
+ * - Global Cross-Device Radar Discovery (Real-time presence across phone & PC)
+ * - Instant 6-digit PIN room matching with zero connection drops
+ * - End-to-end encrypted direct browser-to-browser WebRTC DataChannel transfers
  */
 
 class WebSocketClient {
   constructor() {
-    this.peer = null;
+    this.mqttClient = null;
+    this.connected = false;
     this.ownClient = null;
     this.peers = [];
-    this.listeners = new Map();
-    this.activePinPeers = new Map(); // pin -> Peer instance
-    this.activeRooms = new Map(); // pin -> { filesMeta, files, senderId, senderName, ts }
-    this.activeConnections = new Map();
     this.peerMap = new Map();
+    this.listeners = new Map();
+    this.activeRooms = new Map(); // pin -> { filesMeta, files, expirySeconds, ts }
+    this.subscribedRooms = new Set();
+    this.publishQueue = [];
     this.heartbeatTimer = null;
+    this.pruneTimer = null;
     this.broadcastChannel = null;
 
+    // Brokers (SSL WebSockets Port 8084 / 8884 - accessible worldwide)
+    this.brokers = [
+      'wss://broker.emqx.io:8084/mqtt',
+      'wss://broker.hivemq.com:8884/mqtt'
+    ];
+    this.currentBrokerIdx = 0;
+
+    // Load or generate stable device ID per tab/session
     let savedId = sessionStorage.getItem('openftp_peer_id');
     if (!savedId) {
       savedId = 'node_' + Math.random().toString(36).substring(2, 9);
@@ -35,12 +46,21 @@ class WebSocketClient {
       ip: 'WebRTC P2P'
     };
 
+    // Fast local channel for same-browser tabs
     if ('BroadcastChannel' in window) {
       try {
         this.broadcastChannel = new BroadcastChannel('openftp_radar');
         this.broadcastChannel.onmessage = (e) => this.handleRadarBroadcast(e.data);
       } catch (e) {}
     }
+
+    // Auto cleanup on window unload
+    window.addEventListener('beforeunload', () => {
+      this.publishRadarLeave();
+    });
+
+    // Auto start
+    this.connect();
   }
 
   detectDeviceName() {
@@ -63,170 +83,356 @@ class WebSocketClient {
   }
 
   connect() {
-    if (this.peer && !this.peer.destroyed) return;
+    if (this.mqttClient && this.connected) return;
 
-    if (typeof Peer === 'undefined') {
+    if (typeof window.mqtt === 'undefined') {
       setTimeout(() => this.connect(), 200);
       return;
     }
 
-    const peerId = `openftp-${this.ownClient.id}`;
-    console.log(`[P2P] Initializing PeerJS node: ${peerId}`);
+    const brokerUrl = this.brokers[this.currentBrokerIdx];
+    const clientId = `openftp_${this.ownClient.id}_${Math.random().toString(16).substring(2, 6)}`;
+    console.log(`[P2P Signaling] Connecting to broker: ${brokerUrl} as ${clientId}`);
 
     try {
-      this.peer = new Peer(peerId, {
-        debug: 1,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }
-          ]
-        }
+      this.mqttClient = window.mqtt.connect(brokerUrl, {
+        clientId: clientId,
+        clean: true,
+        reconnectPeriod: 3000,
+        connectTimeout: 10000,
+        keepalive: 30
       });
 
-      this.peer.on('open', (id) => {
-        console.log('[P2P] Connected to WebRTC signaling mesh with ID:', id);
+      this.mqttClient.on('connect', () => {
+        console.log(`[P2P Signaling] Connected to real-time mesh via ${brokerUrl}!`);
+        this.connected = true;
+
+        // 1. Subscribe to Radar presence channel
+        this.mqttClient.subscribe('openftp/v2/radar', { qos: 0 });
+
+        // 2. Subscribe to own private signaling topic
+        this.mqttClient.subscribe(`openftp/v2/peer/${this.ownClient.id}`, { qos: 1 });
+
+        // 3. Resubscribe to any active PIN rooms
+        for (const pin of this.subscribedRooms) {
+          this.mqttClient.subscribe(`openftp/v2/room/${pin}`, { qos: 1 });
+        }
+
+        // Flush any queued publishes
+        while (this.publishQueue.length > 0) {
+          const item = this.publishQueue.shift();
+          this.publish(item.topic, item.payload, item.qos);
+        }
+
         this.emit('welcome', this.ownClient);
         this.startRadarBroadcast();
       });
 
-      this.peer.on('connection', (conn) => {
-        console.log('[P2P] Incoming connection from peer:', conn.peer);
-        this.handleIncomingDirectConnection(conn);
-      });
-
-      this.peer.on('error', (err) => {
-        console.warn('[P2P] Peer notice:', err.type, err.message);
-        if (err.type === 'unavailable-id') {
-          // Retry with fresh session ID if collision
-          this.ownClient.id = 'node_' + Math.random().toString(36).substring(2, 9);
-          sessionStorage.setItem('openftp_peer_id', this.ownClient.id);
-          this.peer = null;
-          setTimeout(() => this.connect(), 300);
+      this.mqttClient.on('message', (topic, payload) => {
+        try {
+          const data = JSON.parse(payload.toString());
+          this.handleIncomingMqttMessage(topic, data);
+        } catch (e) {
+          console.warn('[P2P Signaling] Invalid message payload:', e);
         }
       });
 
-      this.peer.on('disconnected', () => {
-        if (this.peer && !this.peer.destroyed) {
-          this.peer.reconnect();
-        }
+      this.mqttClient.on('error', (err) => {
+        console.warn(`[P2P Signaling] Broker error on ${brokerUrl}:`, err.message || err);
+        this.connected = false;
+        // Rotate broker on failure
+        this.currentBrokerIdx = (this.currentBrokerIdx + 1) % this.brokers.length;
+      });
+
+      this.mqttClient.on('close', () => {
+        this.connected = false;
+      });
+
+      this.mqttClient.on('offline', () => {
+        this.connected = false;
       });
 
     } catch (e) {
-      console.error('[P2P] PeerJS init error:', e);
-      setTimeout(() => this.connect(), 3000);
+      console.error('[P2P Signaling] MQTT initialization error:', e);
+      setTimeout(() => this.connect(), 2000);
     }
   }
 
-  handleIncomingDirectConnection(conn) {
-    conn.on('open', () => {
-      console.log('[P2P] Direct connection opened with:', conn.peer);
-    });
-
-    conn.on('data', (data) => {
-      if (!data) return;
-
-      if (data.type === 'request_room_meta' || data.type === 'join_p2p_room') {
-        const pin = String(data.pin || '').trim();
-        const room = this.activeRooms.get(pin);
-        if (room) {
-          console.log(`[P2P] Answering room request for PIN ${pin} to ${conn.peer}`);
-          conn.send({
-            type: 'p2p_room_joined',
-            pin: pin,
-            senderId: this.ownClient.id,
-            senderName: this.ownClient.name,
-            filesMeta: room.filesMeta || []
-          });
-          window.p2pEngine.attachConnection(conn);
-          this.emit('p2p_peer_joined', {
-            pin: pin,
-            receiverId: conn.peer,
-            receiverName: data.receiverName || 'Recipient Device',
-            conn: conn
-          });
-          return;
-        }
-      }
-
-      if (data.type === 'direct_transfer_request') {
-        if (window.sounds) window.sounds.playNotification();
-        this.emit('incoming_direct_transfer', data);
-      } else if (data.type === 'direct_transfer_response') {
-        this.emit('direct_transfer_response', data);
-      } else if (data.type === 'p2p_room_joined') {
-        window.p2pEngine.attachConnection(conn);
-        this.emit('p2p_room_joined', data);
-      } else {
-        window.p2pEngine.handleChannelMessage(data);
-      }
-    });
-
-    conn.on('error', (err) => {
-      console.warn('[P2P] Connection error:', err);
-    });
+  publish(topic, payload, qos = 0) {
+    const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    if (this.mqttClient && this.connected) {
+      this.mqttClient.publish(topic, payloadStr, { qos: qos });
+    } else {
+      this.publishQueue.push({ topic, payload: payloadStr, qos });
+      if (!this.connected) this.connect();
+    }
   }
 
+  handleIncomingMqttMessage(topic, msg) {
+    if (!msg) return;
+
+    // 1. Global Radar presence
+    if (topic === 'openftp/v2/radar') {
+      this.handleRadarMessage(msg);
+      return;
+    }
+
+    // 2. Room signaling: openftp/v2/room/{pin}
+    if (topic.startsWith('openftp/v2/room/')) {
+      const pin = topic.replace('openftp/v2/room/', '');
+      this.handleRoomMessage(pin, msg);
+      return;
+    }
+
+    // 3. Direct peer-to-peer signaling: openftp/v2/peer/{ownId}
+    if (topic === `openftp/v2/peer/${this.ownClient.id}`) {
+      this.handleDirectPeerMessage(msg);
+      return;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // RADAR PRESENCE & DISCOVERY ENGINE
+  // --------------------------------------------------------------------------
   startRadarBroadcast() {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.pruneTimer) clearInterval(this.pruneTimer);
 
-    const broadcastPresence = () => {
-      const msg = {
-        type: 'presence',
+    const ping = () => {
+      const pingMsg = {
+        type: 'radar_ping',
         id: this.ownClient.id,
         name: this.ownClient.name,
-        ip: 'LAN / WebRTC',
+        ip: 'WebRTC P2P',
         ts: Date.now()
       };
+      this.publish('openftp/v2/radar', pingMsg, 0);
 
       if (this.broadcastChannel) {
-        try { this.broadcastChannel.postMessage(msg); } catch (e) {}
+        try { this.broadcastChannel.postMessage(pingMsg); } catch (e) {}
       }
-
-      // Also track in localStorage for same-browser Radar nodes
-      try {
-        const raw = localStorage.getItem('openftp_active_nodes');
-        const map = raw ? JSON.parse(raw) : {};
-        map[this.ownClient.id] = msg;
-
-        // Prune nodes older than 12s
-        const now = Date.now();
-        const activePeers = [];
-        for (const [id, node] of Object.entries(map)) {
-          if (now - node.ts < 12000) {
-            if (id !== this.ownClient.id) activePeers.push(node);
-          } else {
-            delete map[id];
-          }
-        }
-        localStorage.setItem('openftp_active_nodes', JSON.stringify(map));
-
-        this.peers = activePeers;
-        this.emit('peers_updated', {
-          peers: this.peers,
-          total: this.peers.length
-        });
-      } catch (e) {}
     };
 
-    broadcastPresence();
-    this.heartbeatTimer = setInterval(broadcastPresence, 4000);
+    ping();
+    this.heartbeatTimer = setInterval(ping, 3000);
+
+    // Prune stale peers every 2 seconds
+    this.pruneTimer = setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+      for (const [id, peer] of this.peerMap.entries()) {
+        if (now - peer.lastSeen > 8500) {
+          this.peerMap.delete(id);
+          changed = true;
+        }
+      }
+      if (changed) {
+        this.peers = Array.from(this.peerMap.values());
+        this.emit('peers_updated', { peers: this.peers, total: this.peers.length });
+      }
+    }, 2000);
+  }
+
+  publishRadarLeave() {
+    const leaveMsg = {
+      type: 'radar_leave',
+      id: this.ownClient.id
+    };
+    this.publish('openftp/v2/radar', leaveMsg, 0);
+  }
+
+  handleRadarMessage(msg) {
+    if (!msg || msg.id === this.ownClient.id) return;
+
+    if (msg.type === 'radar_leave') {
+      if (this.peerMap.has(msg.id)) {
+        this.peerMap.delete(msg.id);
+        this.peers = Array.from(this.peerMap.values());
+        this.emit('peers_updated', { peers: this.peers, total: this.peers.length });
+      }
+      return;
+    }
+
+    if (msg.type === 'radar_ping') {
+      const isNew = !this.peerMap.has(msg.id);
+      this.peerMap.set(msg.id, {
+        id: msg.id,
+        name: msg.name,
+        ip: msg.ip || 'LAN / WebRTC',
+        lastSeen: Date.now()
+      });
+
+      this.peers = Array.from(this.peerMap.values());
+      this.emit('peers_updated', { peers: this.peers, total: this.peers.length });
+    }
   }
 
   handleRadarBroadcast(msg) {
-    if (!msg || msg.id === this.ownClient.id) return;
-    this.peerMap.set(msg.id, {
-      id: msg.id,
-      name: msg.name,
-      ip: msg.ip || 'LAN / WebRTC',
-      connectedAt: msg.ts || Date.now()
+    this.handleRadarMessage(msg);
+  }
+
+  // --------------------------------------------------------------------------
+  // 6-DIGIT PIN ROOM MATCHING ENGINE
+  // --------------------------------------------------------------------------
+  registerRoom(data) {
+    const pin = String(data.pin).trim();
+    console.log(`[P2P] Registering PIN room: ${pin}`);
+
+    this.activeRooms.set(pin, {
+      pin: pin,
+      filesMeta: data.filesMeta || [],
+      files: data.files || [],
+      senderId: this.ownClient.id,
+      senderName: this.ownClient.name,
+      expirySeconds: data.expirySeconds || 600,
+      ts: Date.now()
     });
-    this.peers = Array.from(this.peerMap.values());
-    this.emit('peers_updated', {
-      peers: this.peers,
-      total: this.peers.length
-    });
+
+    // Subscribe to room topic
+    const topic = `openftp/v2/room/${pin}`;
+    this.subscribedRooms.add(pin);
+    if (this.mqttClient && this.connected) {
+      this.mqttClient.subscribe(topic, { qos: 1 });
+    }
+
+    // Publish room announcement with manifest
+    this.publish(topic, {
+      type: 'room_announcement',
+      pin: pin,
+      senderId: this.ownClient.id,
+      senderName: this.ownClient.name,
+      filesMeta: data.filesMeta || [],
+      ts: Date.now()
+    }, 1);
+
+    this.emit('room_ready', { pin });
+  }
+
+  joinRoom(data) {
+    const pin = String(data.pin).trim();
+    console.log(`[P2P] Joining PIN room: ${pin}`);
+
+    const topic = `openftp/v2/room/${pin}`;
+    this.subscribedRooms.add(pin);
+    if (this.mqttClient && this.connected) {
+      this.mqttClient.subscribe(topic, { qos: 1 });
+    }
+
+    let joined = false;
+    let attempts = 0;
+    const maxAttempts = 7;
+
+    const sendJoinReq = () => {
+      if (joined) return;
+      attempts++;
+      console.log(`[P2P] Sending room_join_request for PIN ${pin} (attempt ${attempts}/${maxAttempts})...`);
+      this.publish(topic, {
+        type: 'room_join_request',
+        pin: pin,
+        receiverId: this.ownClient.id,
+        receiverName: this.ownClient.name,
+        ts: Date.now()
+      }, 1);
+    };
+
+    sendJoinReq();
+    const retryInterval = setInterval(() => {
+      if (joined || attempts >= maxAttempts) {
+        clearInterval(retryInterval);
+        return;
+      }
+      sendJoinReq();
+    }, 1200);
+
+    // Cancel retry once room joined
+    const cleanup = (msg) => {
+      if (msg && msg.pin === pin) {
+        joined = true;
+        clearInterval(retryInterval);
+        this.off('p2p_room_joined', cleanup);
+      }
+    };
+    this.on('p2p_room_joined', cleanup);
+  }
+
+  handleRoomMessage(pin, msg) {
+    if (!msg) return;
+
+    // CASE 1: Receiver sent join request -> Sender answers with manifest & starts WebRTC connection
+    if (msg.type === 'room_join_request') {
+      if (msg.receiverId === this.ownClient.id) return; // ignore self
+      const room = this.activeRooms.get(pin);
+      if (room) {
+        console.log(`[P2P] Sender answering join request for PIN ${pin} from receiver ${msg.receiverId}`);
+        // Publish manifest
+        this.publish(`openftp/v2/room/${pin}`, {
+          type: 'room_manifest',
+          pin: pin,
+          senderId: this.ownClient.id,
+          senderName: this.ownClient.name,
+          filesMeta: room.filesMeta,
+          targetReceiverId: msg.receiverId
+        }, 1);
+
+        // Notify SendController
+        this.emit('p2p_peer_joined', {
+          pin: pin,
+          receiverId: msg.receiverId,
+          receiverName: msg.receiverName || 'Recipient Device'
+        });
+
+        // Sender initiates direct WebRTC DataChannel connection to receiver
+        if (window.p2pEngine) {
+          console.log(`[P2P] Sender initiating WebRTC offer to ${msg.receiverId}...`);
+          window.p2pEngine.initiateOffer(msg.receiverId);
+        }
+      }
+      return;
+    }
+
+    // CASE 2: Sender sent manifest -> Receiver updates UI and prepares to receive
+    if (msg.type === 'room_manifest' || msg.type === 'room_announcement') {
+      if (msg.senderId === this.ownClient.id) return; // ignore self
+      if (msg.targetReceiverId && msg.targetReceiverId !== this.ownClient.id) return; // intended for other receiver
+
+      console.log(`[P2P] Receiver got room manifest for PIN ${pin}:`, msg.filesMeta);
+      this.emit('p2p_room_joined', {
+        pin: pin,
+        senderId: msg.senderId,
+        senderName: msg.senderName,
+        filesMeta: msg.filesMeta || []
+      });
+      return;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // DIRECT 1-TO-1 PEER SIGNALING & AIRDROP TRANSFERS
+  // --------------------------------------------------------------------------
+  handleDirectPeerMessage(msg) {
+    if (!msg) return;
+
+    // WebRTC SDP offer / answer / ICE candidate
+    if (msg.type === 'webrtc_signal') {
+      this.emit('webrtc_signal', {
+        fromPeerId: msg.fromPeerId,
+        signal: msg.signal
+      });
+      return;
+    }
+
+    // AirDrop / Radar 1-on-1 direct transfer request
+    if (msg.type === 'direct_transfer_request') {
+      if (window.sounds) window.sounds.playNotification();
+      this.emit('incoming_direct_transfer', msg);
+      return;
+    }
+
+    // AirDrop direct transfer accept/decline response
+    if (msg.type === 'direct_transfer_response') {
+      this.emit('direct_transfer_response', msg);
+      return;
+    }
   }
 
   send(data) {
@@ -249,295 +455,42 @@ class WebSocketClient {
         this.joinRoom(data);
         break;
 
+      case 'webrtc_signal':
+        if (data.targetPeerId && data.signal) {
+          this.publish(`openftp/v2/peer/${data.targetPeerId}`, {
+            type: 'webrtc_signal',
+            fromPeerId: this.ownClient.id,
+            signal: data.signal
+          }, 1);
+        }
+        break;
+
       case 'direct_transfer_request':
-        this.sendDirectTransferToPeer(data.targetPeerId, data);
+        if (data.targetPeerId) {
+          this.publish(`openftp/v2/peer/${data.targetPeerId}`, {
+            ...data,
+            fromPeer: {
+              id: this.ownClient.id,
+              name: this.ownClient.name,
+              ip: 'WebRTC P2P'
+            }
+          }, 1);
+        }
         break;
 
       case 'direct_transfer_response':
-        this.sendDirectResponseToPeer(data.senderPeerId, data);
+        if (data.senderPeerId) {
+          this.publish(`openftp/v2/peer/${data.senderPeerId}`, {
+            ...data,
+            receiverId: this.ownClient.id,
+            receiverName: this.ownClient.name
+          }, 1);
+        }
         break;
 
       default:
         break;
     }
-  }
-
-  registerRoom(data) {
-    const pin = String(data.pin).trim();
-    const pinPeerId = `openftp-pin-${pin}`;
-    console.log(`[P2P] Registering PIN room: ${pinPeerId}`);
-
-    // Store active room locally so primary peer can also serve it
-    this.activeRooms.set(pin, {
-      filesMeta: data.filesMeta || [],
-      senderId: this.ownClient.id,
-      senderName: this.ownClient.name,
-      ts: Date.now()
-    });
-
-    // Broadcast room presence to local peers / other tabs via BroadcastChannel & localStorage
-    try {
-      const roomNotice = {
-        type: 'room_announcement',
-        pin: pin,
-        senderPeerId: this.ownClient.id,
-        senderName: this.ownClient.name,
-        filesMeta: data.filesMeta || [],
-        ts: Date.now()
-      };
-      if (this.broadcastChannel) this.broadcastChannel.postMessage(roomNotice);
-      localStorage.setItem(`openftp_room_${pin}`, JSON.stringify(roomNotice));
-    } catch (e) {}
-
-    // If an existing room Peer for this pin exists, destroy it first
-    if (this.activePinPeers.has(pin)) {
-      try { this.activePinPeers.get(pin).destroy(); } catch (e) {}
-    }
-
-    try {
-      const pinPeer = new Peer(pinPeerId, {
-        debug: 1,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }
-          ]
-        }
-      });
-
-      pinPeer.on('open', (id) => {
-        console.log(`[P2P] PIN room live on mesh: ${pinPeerId}`);
-        this.emit('room_ready', { pin, id });
-      });
-
-      pinPeer.on('connection', (conn) => {
-        console.log(`[P2P] Recipient joined PIN room ${pin}! Setting up data pipe...`);
-
-        const sendManifest = () => {
-          console.log(`[P2P] Sending room manifest for PIN ${pin} to recipient ${conn.peer}`);
-          try {
-            conn.send({
-              type: 'p2p_room_joined',
-              pin: pin,
-              senderId: this.ownClient.id,
-              senderName: this.ownClient.name,
-              filesMeta: data.filesMeta || []
-            });
-          } catch (e) {
-            console.warn('[P2P] Error sending manifest:', e);
-          }
-
-          // Attach data connection to P2PEngine
-          window.p2pEngine.attachConnection(conn);
-
-          // Notify SendController
-          this.emit('p2p_peer_joined', {
-            pin: pin,
-            receiverId: conn.peer,
-            receiverName: 'Recipient Device',
-            conn: conn
-          });
-        };
-
-        if (conn.open) {
-          sendManifest();
-        } else {
-          conn.on('open', sendManifest);
-        }
-
-        conn.on('data', (msg) => {
-          if (msg && (msg.type === 'request_room_meta' || msg.type === 'get_manifest' || msg.type === 'join_p2p_room')) {
-            sendManifest();
-          } else {
-            window.p2pEngine.handleChannelMessage(msg);
-          }
-        });
-
-        conn.on('error', (err) => {
-          console.warn('[P2P] PIN room connection error:', err);
-        });
-      });
-
-      pinPeer.on('error', (err) => {
-        console.warn(`[P2P] PIN room peer event:`, err.type, err.message);
-      });
-
-      this.activePinPeers.set(pin, pinPeer);
-
-    } catch (e) {
-      console.error('[P2P] Failed to create PIN room Peer:', e);
-    }
-  }
-
-  joinRoom(data) {
-    const pin = String(data.pin).trim();
-    let senderPeerId = data.senderPeerId || '';
-
-    // Check if sender Peer ID was cached in localStorage
-    if (!senderPeerId) {
-      try {
-        const raw = localStorage.getItem(`openftp_room_${pin}`);
-        if (raw) {
-          const roomNotice = JSON.parse(raw);
-          if (roomNotice && roomNotice.senderPeerId && (Date.now() - roomNotice.ts < 600000)) {
-            senderPeerId = roomNotice.senderPeerId;
-            console.log(`[P2P] Resolved sender Peer ID from local broadcast: ${senderPeerId}`);
-          }
-        }
-      } catch (e) {}
-    }
-
-    const targetPeerId = senderPeerId
-      ? (senderPeerId.startsWith('openftp-') ? senderPeerId : `openftp-${senderPeerId}`)
-      : `openftp-pin-${pin}`;
-
-    console.log(`[P2P] Dialing sender target: ${targetPeerId} (PIN: ${pin})`);
-
-    if (!this.peer || this.peer.destroyed) {
-      this.connect();
-    }
-
-    let attempts = 0;
-    const maxAttempts = 5;
-    let joined = false;
-    let retryTimer = null;
-
-    const attemptConnect = () => {
-      if (joined) return;
-      attempts++;
-      console.log(`[P2P] Attempt ${attempts}/${maxAttempts} connecting to ${targetPeerId}...`);
-
-      try {
-        const conn = this.peer.connect(targetPeerId, {
-          reliable: true
-        });
-
-        const sendReq = () => {
-          console.log(`[P2P] Connected to room ${targetPeerId}! Requesting manifest for ${pin}...`);
-          try {
-            conn.send({
-              type: 'request_room_meta',
-              pin: pin,
-              receiverName: this.ownClient.name
-            });
-          } catch (e) {}
-        };
-
-        if (conn.open) {
-          sendReq();
-        } else {
-          conn.on('open', sendReq);
-        }
-
-        conn.on('data', (msg) => {
-          if (msg && msg.type === 'p2p_room_joined') {
-            console.log(`[P2P] Received room manifest for ${pin}!`);
-            joined = true;
-            if (retryTimer) clearTimeout(retryTimer);
-            window.p2pEngine.attachConnection(conn);
-            this.emit('p2p_room_joined', msg);
-          } else {
-            window.p2pEngine.handleChannelMessage(msg);
-          }
-        });
-
-        conn.on('close', () => {
-          console.log(`[P2P] Room connection closed.`);
-        });
-
-        conn.on('error', (err) => {
-          console.warn('[P2P] Join PIN room error on attempt', attempts, err);
-          if (!joined && attempts < maxAttempts) {
-            retryTimer = setTimeout(attemptConnect, 1200);
-          } else if (!joined) {
-            this.emit('p2p_room_error', { pin: pin, error: err.message });
-          }
-        });
-
-      } catch (e) {
-        console.error('[P2P] Connection dispatch error:', e);
-        if (!joined && attempts < maxAttempts) {
-          retryTimer = setTimeout(attemptConnect, 1200);
-        } else if (!joined) {
-          this.emit('p2p_room_error', { pin: pin, error: e.message });
-        }
-      }
-    };
-
-    // Catch peer-unavailable on this.peer to trigger retry automatically
-    const onPeerUnavailable = (err) => {
-      if (err && err.type === 'peer-unavailable') {
-        console.warn(`[P2P] Peer ${targetPeerId} not yet ready on attempt ${attempts}. Retrying in 1.2s...`);
-        if (!joined && attempts < maxAttempts) {
-          if (retryTimer) clearTimeout(retryTimer);
-          retryTimer = setTimeout(attemptConnect, 1200);
-        }
-      }
-    };
-
-    this.peer.on('error', onPeerUnavailable);
-
-    this.once('p2p_room_joined', () => {
-      joined = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      if (this.peer) this.peer.off('error', onPeerUnavailable);
-    });
-
-    console.log(`[P2P] Starting room join. Peer state: open=${this.peer?.open}, id=${this.peer?.id}`);
-    if (this.peer && (this.peer.open || this.peer.id)) {
-      attemptConnect();
-    } else {
-      if (this.peer) this.peer.once('open', attemptConnect);
-      setTimeout(attemptConnect, 800);
-    }
-  }
-
-  sendDirectTransferToPeer(targetId, data) {
-    const targetPeerId = targetId.startsWith('openftp-') ? targetId : `openftp-${targetId}`;
-    if (!this.peer || !this.peer.open) return;
-
-    try {
-      const conn = this.peer.connect(targetPeerId, { reliable: true });
-      conn.on('open', () => {
-        conn.send({
-          ...data,
-          fromPeer: {
-            id: this.ownClient.id,
-            name: this.ownClient.name,
-            ip: 'WebRTC P2P'
-          }
-        });
-        window.p2pEngine.attachConnection(conn);
-      });
-      conn.on('data', (msg) => {
-        if (msg && msg.type === 'direct_transfer_response') {
-          this.emit('direct_transfer_response', msg);
-        } else {
-          window.p2pEngine.handleChannelMessage(msg);
-        }
-      });
-    } catch (e) {}
-  }
-
-  sendDirectResponseToPeer(senderId, data) {
-    const targetPeerId = senderId.startsWith('openftp-') ? senderId : `openftp-${senderId}`;
-    if (!this.peer || !this.peer.open) return;
-
-    try {
-      const conn = this.peer.connect(targetPeerId, { reliable: true });
-      conn.on('open', () => {
-        conn.send({
-          ...data,
-          receiverId: this.ownClient.id,
-          receiverName: this.ownClient.name
-        });
-        window.p2pEngine.attachConnection(conn);
-      });
-      conn.on('data', (msg) => {
-        window.p2pEngine.handleChannelMessage(msg);
-      });
-    } catch (e) {}
   }
 
   setDeviceName(name) {
@@ -553,7 +506,10 @@ class WebSocketClient {
       fileCount: transferData.fileCount,
       totalSize: transferData.totalSize,
       formattedTotalSize: transferData.formattedTotalSize,
-      filesSummary: (transferData.files || []).map(f => ({ name: f.originalName || f.name, size: f.formattedSize }))
+      filesSummary: (transferData.files || []).map(f => ({
+        name: f.originalName || f.name,
+        size: f.formattedSize
+      }))
     });
   }
 
@@ -566,6 +522,9 @@ class WebSocketClient {
     });
   }
 
+  // --------------------------------------------------------------------------
+  // EVENT EMITTER UTILITIES
+  // --------------------------------------------------------------------------
   on(event, callback) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
@@ -573,10 +532,24 @@ class WebSocketClient {
     this.listeners.get(event).push(callback);
   }
 
+  once(event, callback) {
+    const wrapper = (data) => {
+      this.off(event, wrapper);
+      callback(data);
+    };
+    this.on(event, wrapper);
+  }
+
+  off(event, callback) {
+    if (!this.listeners.has(event)) return;
+    const filtered = this.listeners.get(event).filter(cb => cb !== callback);
+    this.listeners.set(event, filtered);
+  }
+
   emit(event, data) {
     if (this.listeners.has(event)) {
       this.listeners.get(event).forEach(cb => {
-        try { cb(data); } catch (e) { console.error(e); }
+        try { cb(data); } catch (e) { console.error(`Error in event listener for [${event}]:`, e); }
       });
     }
   }
