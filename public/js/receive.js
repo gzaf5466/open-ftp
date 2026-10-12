@@ -433,15 +433,15 @@ const ReceiveController = {
       if (p2pFileName) p2pFileName.textContent = `P2P Streaming "${suggestedName}" to disk...`;
 
       // Signal sender that receiver is ready
-      if (window.p2pEngine.dataChannel && window.p2pEngine.dataChannel.readyState === 'open') {
-        window.p2pEngine.dataChannel.send(JSON.stringify({
-          type: 'READY_TO_RECEIVE',
-          fileId: fileId,
-          resumeOffset: resumeOffset
-        }));
+      const sent = window.p2pEngine.sendRaw(JSON.stringify({
+        type: 'READY_TO_RECEIVE',
+        fileId: fileId,
+        resumeOffset: resumeOffset
+      }));
+      if (sent) {
         app.showToast('Direct P2P pipe active! Streaming to disk...', 'success');
       } else {
-        app.showToast('Waiting for peer data channel to open...', 'info');
+        app.showToast('Ready signal queued for direct pipe...', 'info');
       }
     } catch (err) {
       if (err.name !== 'AbortError') {

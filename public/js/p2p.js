@@ -195,6 +195,55 @@ class P2PEngine {
     };
   }
 
+  attachConnection(conn) {
+    if (!conn) return;
+    this.activeConn = conn;
+
+    const bind = () => {
+      const dc = conn.dataChannel || conn._dc;
+      if (dc) {
+        this.setupDataChannel(dc);
+      } else {
+        this.emit('channel_open');
+      }
+    };
+
+    if (conn.open) {
+      bind();
+    } else {
+      conn.on('open', bind);
+    }
+
+    conn.on('data', (data) => {
+      this.handleChannelMessage(data);
+    });
+
+    conn.on('close', () => {
+      this.emit('channel_close');
+    });
+
+    conn.on('error', (err) => {
+      console.warn('[P2P Conn error]:', err);
+      this.emit('error', err);
+    });
+  }
+
+  sendRaw(data) {
+    if (this.dataChannel && this.dataChannel.readyState === 'open') {
+      try {
+        this.dataChannel.send(data);
+        return true;
+      } catch (e) {}
+    }
+    if (this.activeConn && this.activeConn.open) {
+      try {
+        this.activeConn.send(data);
+        return true;
+      } catch (e) {}
+    }
+    return false;
+  }
+
   // --------------------------------------------------------------------------
   // WebRTC Signaling via WebSocket
   // --------------------------------------------------------------------------
@@ -244,7 +293,8 @@ class P2PEngine {
   // SENDER ENGINE: High-Speed File Slicing & Resumable Streaming
   // --------------------------------------------------------------------------
   async sendFile(file, { onProgress = null, onComplete = null, onError = null } = {}) {
-    if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
+    const isReady = (this.dataChannel && this.dataChannel.readyState === 'open') || (this.activeConn && this.activeConn.open);
+    if (!isReady) {
       throw new Error('P2P DataChannel is not open');
     }
 
@@ -266,7 +316,7 @@ class P2PEngine {
       size: file.size,
       mimetype: file.type || 'application/octet-stream'
     };
-    this.dataChannel.send(JSON.stringify(fileHeader));
+    this.sendRaw(JSON.stringify(fileHeader));
 
     this.onProgressCb = onProgress;
     this.onCompleteCb = onComplete;
@@ -289,12 +339,15 @@ class P2PEngine {
 
       while (offset < file.size) {
         // Backpressure check: if buffer is full, wait for bufferedamountlow event
-        if (this.dataChannel.bufferedAmount > this.MAX_BUFFER_AMOUNT) {
-          this.dataChannel.onbufferedamountlow = () => {
-            this.dataChannel.onbufferedamountlow = null;
-            readAndSendChunk();
-          };
-          return;
+        const buffered = (this.dataChannel ? this.dataChannel.bufferedAmount : 0);
+        if (buffered > this.MAX_BUFFER_AMOUNT) {
+          if (this.dataChannel) {
+            this.dataChannel.onbufferedamountlow = () => {
+              this.dataChannel.onbufferedamountlow = null;
+              readAndSendChunk();
+            };
+            return;
+          }
         }
 
         const nextOffset = Math.min(offset + this.CHUNK_SIZE, file.size);
@@ -302,17 +355,18 @@ class P2PEngine {
         const reader = new FileReader();
 
         reader.onload = (e) => {
-          if (!this.dataChannel || this.dataChannel.readyState !== 'open') return;
+          const isReady = (this.dataChannel && this.dataChannel.readyState === 'open') || (this.activeConn && this.activeConn.open);
+          if (!isReady) return;
 
           try {
-            this.dataChannel.send(e.target.result);
+            this.sendRaw(e.target.result);
             offset = nextOffset;
             this.transferState.bytesTransferred = offset;
             this.reportProgress();
 
             if (offset >= file.size) {
               // Notify receiver that file stream is done
-              this.dataChannel.send(JSON.stringify({ type: 'FILE_END', fileId: this.fileId }));
+              this.sendRaw(JSON.stringify({ type: 'FILE_END', fileId: this.fileId }));
               this.transferState.status = 'completed';
               if (this.onCompleteCb) this.onCompleteCb({ fileId: this.fileId, fileName: file.name, size: file.size });
               this.emit('file_sent', { name: file.name, size: file.size });
@@ -395,7 +449,7 @@ class P2PEngine {
 
         // If direct disk stream was already prepared by user click
         if (this.fileWritableStream) {
-          this.dataChannel.send(JSON.stringify({
+          this.sendRaw(JSON.stringify({
             type: 'READY_TO_RECEIVE',
             fileId: msg.fileId,
             resumeOffset: resumeOffset

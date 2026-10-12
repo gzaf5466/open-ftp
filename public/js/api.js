@@ -74,36 +74,30 @@ const API = {
   },
 
   async getQrCode(text, size = 260) {
-    return new Promise((resolve) => {
-      try {
-        if (typeof QRCode !== 'undefined') {
-          const tempDiv = document.createElement('div');
-          new QRCode(tempDiv, {
-            text: text,
-            width: size,
-            height: size,
-            colorDark: '#111827',
-            colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.H
-          });
-
-          setTimeout(() => {
-            const img = tempDiv.querySelector('img');
-            const canvas = tempDiv.querySelector('canvas');
-            if (canvas) {
-              resolve(canvas.toDataURL('image/png'));
-            } else if (img && img.src) {
-              resolve(img.src);
-            } else {
-              resolve(`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`);
-            }
-          }, 40);
-          return;
-        }
-      } catch (e) {}
-      // Fallback
-      resolve(`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`);
-    });
+    try {
+      if (typeof QRCode !== 'undefined' && QRCode.toString) {
+        const svg = await QRCode.toString(text, {
+          type: 'svg',
+          width: size,
+          margin: 2,
+          color: { dark: '#111827', light: '#ffffff' }
+        });
+        const dataUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+        return {
+          qrDataUrl: dataUrl,
+          url: dataUrl,
+          toString() { return dataUrl; }
+        };
+      }
+    } catch (e) {
+      console.warn('QRCode.toString fallback:', e);
+    }
+    const fallback = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+    return {
+      qrDataUrl: fallback,
+      url: fallback,
+      toString() { return fallback; }
+    };
   },
 
   // --------------------------------------------------------------------------

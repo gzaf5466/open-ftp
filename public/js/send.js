@@ -518,10 +518,8 @@ const SendController = {
     }
 
     // Set Share Links
-    const primaryIp = window.appState ? window.appState.primaryIp : location.hostname;
-    const port = window.appState ? window.appState.port : location.port;
-    const portStr = port ? `:${port}` : '';
-    const shareUrl = `http://${primaryIp}${portStr}/r/${transfer.key}`;
+    const baseUrl = window.location.href.split('#')[0].replace(/\/+$/, '');
+    const shareUrl = `${baseUrl}#receive/${transfer.key}`;
     const shareLinkEl = document.getElementById('active-share-link-text');
     if (shareLinkEl) shareLinkEl.textContent = shareUrl;
 
@@ -590,17 +588,16 @@ const SendController = {
 
   async showQrModal() {
     if (!this.activeTransfer) return;
-    const primaryIp = window.appState ? window.appState.primaryIp : location.hostname;
-    const port = window.appState ? window.appState.port : location.port;
-    const portStr = port ? `:${port}` : '';
-    const shareUrl = `http://${primaryIp}${portStr}/r/${this.activeTransfer.key}`;
+    const baseUrl = window.location.href.split('#')[0].replace(/\/+$/, '');
+    const shareUrl = `${baseUrl}#receive/${this.activeTransfer.key}`;
 
     try {
       const qrData = await API.getQrCode(shareUrl, 280);
       const modalImg = document.getElementById('qr-modal-img');
       const modalText = document.getElementById('qr-modal-key-text');
 
-      if (modalImg) modalImg.src = qrData.qrDataUrl;
+      const src = qrData ? (qrData.qrDataUrl || qrData.url || qrData) : '';
+      if (modalImg) modalImg.src = src;
       if (modalText) modalText.textContent = `Key: ${this.activeTransfer.key}`;
 
       app.openModal('modal-qr-view');

@@ -7,7 +7,7 @@ class App {
   constructor() {
     this.currentTab = 'send';
     this.systemInfo = null;
-    this.theme = localStorage.getItem('theme') || 'dark';
+    this.theme = localStorage.getItem('theme') || 'light';
   }
 
   async init() {
@@ -185,12 +185,14 @@ class App {
   handleRouting() {
     const hash = window.location.hash.replace(/^#/, '');
 
-    if (hash.startsWith('receive/')) {
-      const pin = hash.split('/')[1];
+    if (hash.startsWith('receive/') || hash.startsWith('receive=')) {
+      const pin = hash.replace(/^receive[/=]/, '').replace(/[^0-9]/g, '');
       this.switchTab('receive');
       if (pin && pin.length === 6) {
-        ReceiveController.fillPin(pin);
-        ReceiveController.fetchTransferByKey(pin);
+        setTimeout(() => {
+          ReceiveController.fillPin(pin);
+          ReceiveController.fetchTransferByKey(pin);
+        }, 100);
       }
     } else if (['send', 'receive', 'vault', 'radar', 'ftp'].includes(hash)) {
       this.switchTab(hash);
