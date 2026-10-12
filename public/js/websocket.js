@@ -484,12 +484,12 @@ class WebSocketClient {
       if (this.peer) this.peer.off('error', onPeerUnavailable);
     });
 
-    if (this.peer && this.peer.open) {
+    console.log(`[P2P] Starting room join. Peer state: open=${this.peer?.open}, id=${this.peer?.id}`);
+    if (this.peer && (this.peer.open || this.peer.id)) {
       attemptConnect();
-    } else if (this.peer) {
-      this.peer.once('open', attemptConnect);
     } else {
-      setTimeout(attemptConnect, 600);
+      if (this.peer) this.peer.once('open', attemptConnect);
+      setTimeout(attemptConnect, 800);
     }
   }
 
