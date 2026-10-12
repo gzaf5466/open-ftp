@@ -273,7 +273,7 @@ const ReceiveController = {
     await this.fetchTransferByKey(pin);
   },
 
-  async fetchTransferByKey(pin) {
+  async fetchTransferByKey(pin, senderPeerId = '') {
     const cleanPin = String(pin || '').trim();
     if (!cleanPin || cleanPin.length !== 6) {
       app.showToast('Please enter a valid 6-digit key', 'error');
@@ -281,7 +281,7 @@ const ReceiveController = {
     }
 
     this.pendingLookupPin = cleanPin;
-    this.isP2P = false;
+    this.isP2P = true;
 
     if (this.p2pLookupTimeout) {
       clearTimeout(this.p2pLookupTimeout);
@@ -290,15 +290,19 @@ const ReceiveController = {
 
     // Headless P2P Room Join over mesh
     if (window.wsClient) {
-      window.wsClient.send({ type: 'join_p2p_room', pin: cleanPin });
-      app.showToast(`Looking for sender with key ${cleanPin}...`, 'info');
+      window.wsClient.send({
+        type: 'join_p2p_room',
+        pin: cleanPin,
+        senderPeerId: senderPeerId
+      });
+      app.showToast(`Connecting to sender with key ${cleanPin}...`, 'info');
 
       this.p2pLookupTimeout = setTimeout(() => {
         if (!this.currentTransfer && this.pendingLookupPin === cleanPin) {
           app.showToast('Transfer key not found or sender offline. Please check the 6-digit PIN.', 'error');
           this.pendingLookupPin = null;
         }
-      }, 7000);
+      }, 12000);
     }
   },
 
@@ -380,7 +384,7 @@ const ReceiveController = {
             </td>
           `;
 
-          if (isP2P) {
+          if (this.isP2P || transfer.isP2P) {
             const saveBtn = row.querySelector('.btn-action-p2p-save');
             if (saveBtn) {
               saveBtn.addEventListener('click', () => this.startP2PDiskStream(file));
@@ -436,6 +440,7 @@ const ReceiveController = {
       const sent = window.p2pEngine.sendRaw(JSON.stringify({
         type: 'READY_TO_RECEIVE',
         fileId: fileId,
+        fileName: suggestedName,
         resumeOffset: resumeOffset
       }));
       if (sent) {

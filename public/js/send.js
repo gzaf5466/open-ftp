@@ -21,19 +21,35 @@ const SendController = {
 
     // Triggered when receiver joins our P2P 6-digit PIN room
     window.wsClient.on('p2p_peer_joined', async (data) => {
-      app.showToast(`${data.receiverName || 'Recipient'} connected! Initiating direct WebRTC pipe...`, 'info');
+      app.showToast(`${data.receiverName || 'Recipient'} connected! Streaming pipe ready.`, 'success');
       try {
         window.p2pEngine.currentPin = data.pin;
-        await window.p2pEngine.initiateOffer(data.receiverId);
-
-        // When data channel is open, stream staged files
-        window.p2pEngine.on('channel_open', async () => {
-          if (this.stagedFiles && this.stagedFiles.length > 0) {
-            this.startP2PStreaming();
-          }
-        });
+        window.p2pEngine.stagedFiles = this.stagedFiles;
+        if (data.conn) {
+          window.p2pEngine.attachConnection(data.conn);
+        }
+        if (this.stagedFiles && this.stagedFiles.length > 0) {
+          window.p2pEngine.currentFile = this.stagedFiles[0];
+          await window.p2pEngine.sendFile(this.stagedFiles[0], {
+            onProgress: (p) => {
+              const progressBar = document.getElementById('transfer-progress-fill');
+              const progressPercent = document.getElementById('transfer-progress-percent');
+              const progressSpeed = document.getElementById('transfer-progress-speed');
+              if (progressBar) progressBar.style.width = `${p.percent}%`;
+              if (progressPercent) progressPercent.textContent = `${p.percent}%`;
+              if (progressSpeed) {
+                const speedMb = (p.speedBps / (1024 * 1024)).toFixed(1);
+                progressSpeed.textContent = `${speedMb} MB/s`;
+              }
+            },
+            onComplete: () => {
+              if (window.sounds) window.sounds.playSuccess();
+              app.showToast(`P2P File "${this.stagedFiles[0].name}" sent successfully!`, 'success');
+            }
+          });
+        }
       } catch (err) {
-        console.error('Failed to initiate P2P offer:', err);
+        console.error('P2P stream setup failed:', err);
       }
     });
 
@@ -518,8 +534,9 @@ const SendController = {
     }
 
     // Set Share Links
-    const baseUrl = window.location.href.split('#')[0].replace(/\/+$/, '');
-    const shareUrl = `${baseUrl}#receive/${transfer.key}`;
+    const baseUrl = window.location.href.split('#')[0].split('?')[0].replace(/\/+$/, '');
+    const senderId = window.wsClient && window.wsClient.ownClient ? window.wsClient.ownClient.id : '';
+    const shareUrl = `${baseUrl}#receive/${transfer.key}${senderId ? `?s=${senderId}` : ''}`;
     const shareLinkEl = document.getElementById('active-share-link-text');
     if (shareLinkEl) shareLinkEl.textContent = shareUrl;
 
@@ -588,8 +605,9 @@ const SendController = {
 
   async showQrModal() {
     if (!this.activeTransfer) return;
-    const baseUrl = window.location.href.split('#')[0].replace(/\/+$/, '');
-    const shareUrl = `${baseUrl}#receive/${this.activeTransfer.key}`;
+    const baseUrl = window.location.href.split('#')[0].split('?')[0].replace(/\/+$/, '');
+    const senderId = window.wsClient && window.wsClient.ownClient ? window.wsClient.ownClient.id : '';
+    const shareUrl = `${baseUrl}#receive/${this.activeTransfer.key}${senderId ? `?s=${senderId}` : ''}`;
 
     try {
       const qrData = await API.getQrCode(shareUrl, 280);

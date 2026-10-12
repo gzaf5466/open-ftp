@@ -417,9 +417,12 @@ class P2PEngine {
       return;
     }
 
-    // Binary Chunk received (ArrayBuffer)
+    // Binary Chunk received (ArrayBuffer or TypedArray)
     if (message instanceof ArrayBuffer) {
       await this.handleReceivedChunk(message);
+    } else if (message instanceof Uint8Array || (message && message.buffer instanceof ArrayBuffer)) {
+      const buf = message.buffer instanceof ArrayBuffer ? message.buffer : message;
+      await this.handleReceivedChunk(buf);
     }
   }
 
@@ -452,6 +455,7 @@ class P2PEngine {
           this.sendRaw(JSON.stringify({
             type: 'READY_TO_RECEIVE',
             fileId: msg.fileId,
+            fileName: msg.name,
             resumeOffset: resumeOffset
           }));
         } else {
@@ -461,6 +465,13 @@ class P2PEngine {
         break;
 
       case 'READY_TO_RECEIVE':
+        // Match specific staged file if requested
+        if (this.stagedFiles && this.stagedFiles.length > 0) {
+          const match = this.stagedFiles.find(f =>
+            this.generateFileId(f) === msg.fileId || f.name === msg.fileName
+          );
+          if (match) this.currentFile = match;
+        }
         // Sender starts streaming from the requested offset
         this.startStreamingFromOffset(msg.resumeOffset || 0);
         break;

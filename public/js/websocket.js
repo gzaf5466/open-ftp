@@ -14,6 +14,7 @@ class WebSocketClient {
     this.peers = [];
     this.listeners = new Map();
     this.activePinPeers = new Map(); // pin -> Peer instance
+    this.activeRooms = new Map(); // pin -> { filesMeta, files, senderId, senderName, ts }
     this.activeConnections = new Map();
     this.peerMap = new Map();
     this.heartbeatTimer = null;
@@ -79,7 +80,7 @@ class WebSocketClient {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
+            { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }
           ]
         }
       });
@@ -125,6 +126,29 @@ class WebSocketClient {
 
     conn.on('data', (data) => {
       if (!data) return;
+
+      if (data.type === 'request_room_meta' || data.type === 'join_p2p_room') {
+        const pin = String(data.pin || '').trim();
+        const room = this.activeRooms.get(pin);
+        if (room) {
+          console.log(`[P2P] Answering room request for PIN ${pin} to ${conn.peer}`);
+          conn.send({
+            type: 'p2p_room_joined',
+            pin: pin,
+            senderId: this.ownClient.id,
+            senderName: this.ownClient.name,
+            filesMeta: room.filesMeta || []
+          });
+          window.p2pEngine.attachConnection(conn);
+          this.emit('p2p_peer_joined', {
+            pin: pin,
+            receiverId: conn.peer,
+            receiverName: data.receiverName || 'Recipient Device',
+            conn: conn
+          });
+          return;
+        }
+      }
 
       if (data.type === 'direct_transfer_request') {
         if (window.sounds) window.sounds.playNotification();
@@ -243,6 +267,28 @@ class WebSocketClient {
     const pinPeerId = `openftp-pin-${pin}`;
     console.log(`[P2P] Registering PIN room: ${pinPeerId}`);
 
+    // Store active room locally so primary peer can also serve it
+    this.activeRooms.set(pin, {
+      filesMeta: data.filesMeta || [],
+      senderId: this.ownClient.id,
+      senderName: this.ownClient.name,
+      ts: Date.now()
+    });
+
+    // Broadcast room presence to local peers / other tabs via BroadcastChannel & localStorage
+    try {
+      const roomNotice = {
+        type: 'room_announcement',
+        pin: pin,
+        senderPeerId: this.ownClient.id,
+        senderName: this.ownClient.name,
+        filesMeta: data.filesMeta || [],
+        ts: Date.now()
+      };
+      if (this.broadcastChannel) this.broadcastChannel.postMessage(roomNotice);
+      localStorage.setItem(`openftp_room_${pin}`, JSON.stringify(roomNotice));
+    } catch (e) {}
+
     // If an existing room Peer for this pin exists, destroy it first
     if (this.activePinPeers.has(pin)) {
       try { this.activePinPeers.get(pin).destroy(); } catch (e) {}
@@ -255,27 +301,32 @@ class WebSocketClient {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
+            { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }
           ]
         }
       });
 
-      pinPeer.on('open', () => {
+      pinPeer.on('open', (id) => {
         console.log(`[P2P] PIN room live on mesh: ${pinPeerId}`);
+        this.emit('room_ready', { pin, id });
       });
 
       pinPeer.on('connection', (conn) => {
         console.log(`[P2P] Recipient joined PIN room ${pin}! Setting up data pipe...`);
 
-        conn.on('open', () => {
-          // Send room file manifest to recipient
-          conn.send({
-            type: 'p2p_room_joined',
-            pin: pin,
-            senderId: this.ownClient.id,
-            senderName: this.ownClient.name,
-            filesMeta: data.filesMeta || []
-          });
+        const sendManifest = () => {
+          console.log(`[P2P] Sending room manifest for PIN ${pin} to recipient ${conn.peer}`);
+          try {
+            conn.send({
+              type: 'p2p_room_joined',
+              pin: pin,
+              senderId: this.ownClient.id,
+              senderName: this.ownClient.name,
+              filesMeta: data.filesMeta || []
+            });
+          } catch (e) {
+            console.warn('[P2P] Error sending manifest:', e);
+          }
 
           // Attach data connection to P2PEngine
           window.p2pEngine.attachConnection(conn);
@@ -287,10 +338,20 @@ class WebSocketClient {
             receiverName: 'Recipient Device',
             conn: conn
           });
-        });
+        };
+
+        if (conn.open) {
+          sendManifest();
+        } else {
+          conn.on('open', sendManifest);
+        }
 
         conn.on('data', (msg) => {
-          window.p2pEngine.handleChannelMessage(msg);
+          if (msg && (msg.type === 'request_room_meta' || msg.type === 'get_manifest' || msg.type === 'join_p2p_room')) {
+            sendManifest();
+          } else {
+            window.p2pEngine.handleChannelMessage(msg);
+          }
         });
 
         conn.on('error', (err) => {
@@ -299,7 +360,7 @@ class WebSocketClient {
       });
 
       pinPeer.on('error', (err) => {
-        console.warn(`[P2P] PIN room peer event:`, err.type);
+        console.warn(`[P2P] PIN room peer event:`, err.type, err.message);
       });
 
       this.activePinPeers.set(pin, pinPeer);
@@ -311,26 +372,69 @@ class WebSocketClient {
 
   joinRoom(data) {
     const pin = String(data.pin).trim();
-    const targetPeerId = `openftp-pin-${pin}`;
-    console.log(`[P2P] Dialing sender PIN room: ${targetPeerId}`);
+    let senderPeerId = data.senderPeerId || '';
+
+    // Check if sender Peer ID was cached in localStorage
+    if (!senderPeerId) {
+      try {
+        const raw = localStorage.getItem(`openftp_room_${pin}`);
+        if (raw) {
+          const roomNotice = JSON.parse(raw);
+          if (roomNotice && roomNotice.senderPeerId && (Date.now() - roomNotice.ts < 600000)) {
+            senderPeerId = roomNotice.senderPeerId;
+            console.log(`[P2P] Resolved sender Peer ID from local broadcast: ${senderPeerId}`);
+          }
+        }
+      } catch (e) {}
+    }
+
+    const targetPeerId = senderPeerId
+      ? (senderPeerId.startsWith('openftp-') ? senderPeerId : `openftp-${senderPeerId}`)
+      : `openftp-pin-${pin}`;
+
+    console.log(`[P2P] Dialing sender target: ${targetPeerId} (PIN: ${pin})`);
 
     if (!this.peer || this.peer.destroyed) {
       this.connect();
     }
 
-    const connectToRoom = () => {
+    let attempts = 0;
+    const maxAttempts = 5;
+    let joined = false;
+    let retryTimer = null;
+
+    const attemptConnect = () => {
+      if (joined) return;
+      attempts++;
+      console.log(`[P2P] Attempt ${attempts}/${maxAttempts} connecting to ${targetPeerId}...`);
+
       try {
         const conn = this.peer.connect(targetPeerId, {
           reliable: true
         });
 
-        conn.on('open', () => {
-          console.log(`[P2P] Connected to room ${targetPeerId}!`);
-        });
+        const sendReq = () => {
+          console.log(`[P2P] Connected to room ${targetPeerId}! Requesting manifest for ${pin}...`);
+          try {
+            conn.send({
+              type: 'request_room_meta',
+              pin: pin,
+              receiverName: this.ownClient.name
+            });
+          } catch (e) {}
+        };
+
+        if (conn.open) {
+          sendReq();
+        } else {
+          conn.on('open', sendReq);
+        }
 
         conn.on('data', (msg) => {
           if (msg && msg.type === 'p2p_room_joined') {
             console.log(`[P2P] Received room manifest for ${pin}!`);
+            joined = true;
+            if (retryTimer) clearTimeout(retryTimer);
             window.p2pEngine.attachConnection(conn);
             this.emit('p2p_room_joined', msg);
           } else {
@@ -343,22 +447,49 @@ class WebSocketClient {
         });
 
         conn.on('error', (err) => {
-          console.warn('[P2P] Join PIN room error:', err);
-          this.emit('p2p_room_error', { pin: pin, error: err.message });
+          console.warn('[P2P] Join PIN room error on attempt', attempts, err);
+          if (!joined && attempts < maxAttempts) {
+            retryTimer = setTimeout(attemptConnect, 1200);
+          } else if (!joined) {
+            this.emit('p2p_room_error', { pin: pin, error: err.message });
+          }
         });
 
       } catch (e) {
         console.error('[P2P] Connection dispatch error:', e);
-        this.emit('p2p_room_error', { pin: pin, error: e.message });
+        if (!joined && attempts < maxAttempts) {
+          retryTimer = setTimeout(attemptConnect, 1200);
+        } else if (!joined) {
+          this.emit('p2p_room_error', { pin: pin, error: e.message });
+        }
       }
     };
 
+    // Catch peer-unavailable on this.peer to trigger retry automatically
+    const onPeerUnavailable = (err) => {
+      if (err && err.type === 'peer-unavailable') {
+        console.warn(`[P2P] Peer ${targetPeerId} not yet ready on attempt ${attempts}. Retrying in 1.2s...`);
+        if (!joined && attempts < maxAttempts) {
+          if (retryTimer) clearTimeout(retryTimer);
+          retryTimer = setTimeout(attemptConnect, 1200);
+        }
+      }
+    };
+
+    this.peer.on('error', onPeerUnavailable);
+
+    this.once('p2p_room_joined', () => {
+      joined = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (this.peer) this.peer.off('error', onPeerUnavailable);
+    });
+
     if (this.peer && this.peer.open) {
-      connectToRoom();
+      attemptConnect();
     } else if (this.peer) {
-      this.peer.once('open', connectToRoom);
+      this.peer.once('open', attemptConnect);
     } else {
-      setTimeout(connectToRoom, 500);
+      setTimeout(attemptConnect, 600);
     }
   }
 

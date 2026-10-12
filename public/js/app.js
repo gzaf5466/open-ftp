@@ -186,13 +186,16 @@ class App {
     const hash = window.location.hash.replace(/^#/, '');
 
     if (hash.startsWith('receive/') || hash.startsWith('receive=')) {
-      const pin = hash.replace(/^receive[/=]/, '').replace(/[^0-9]/g, '');
+      const parts = hash.split('?');
+      const pin = parts[0].replace(/^receive[/=]/, '').replace(/[^0-9]/g, '');
+      const searchParams = new URLSearchParams(parts[1] || window.location.search);
+      const senderId = searchParams.get('s') || searchParams.get('sender') || '';
       this.switchTab('receive');
       if (pin && pin.length === 6) {
         setTimeout(() => {
           ReceiveController.fillPin(pin);
-          ReceiveController.fetchTransferByKey(pin);
-        }, 100);
+          ReceiveController.fetchTransferByKey(pin, senderId);
+        }, 150);
       }
     } else if (['send', 'receive', 'vault', 'radar', 'ftp'].includes(hash)) {
       this.switchTab(hash);
